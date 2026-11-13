@@ -1,10 +1,11 @@
-import { CPU_NAMES, MAX_NITRO, POINTS } from '../content/drivers';
-import { catalogById, freshUpgrades, modeById, seriesById, statsFor, vehicleById } from '../content/registry';
+import { CPU_NAMES, MAX_NITRO, PAINTS, POINTS } from '../content/drivers';
+import { catalogById, classesOf, freshUpgrades, hasSeries, modeById, seriesById, statsFor, vehicleById, vehiclesIn } from '../content/registry';
 import type { Catalog, SeriesDef, Upgrades } from '../content/types';
 import type { Entry, Race } from '../sim/race';
 
 /** Device value for a human who is playing from another machine. */
 export const REMOTE = 99;
+const SAVE_KEY = 'mudline.season';
 
 export interface Driver {
   slot: number;
@@ -12,6 +13,8 @@ export interface Driver {
   device: number | null;
   name: string;
   vehicle: string;
+  /** Index into the paint list. */
+  color: number;
   money: number;
   points: number;
   up: Upgrades;
@@ -19,6 +22,7 @@ export interface Driver {
 }
 
 export interface ResultRow { slot: number; name: string; place: number; prize: number; cash: number; time: number }
+export interface SetupOpts { vehicles?: (string | undefined)[]; paints?: (number | undefined)[]; klass?: string }
 
 /** One run through a series: who is driving what, their money and parts, and where the series has got to. */
 export class Session {
@@ -26,7 +30,11 @@ export class Session {
   mode: 'champ' | 'quick' = 'quick';
   round = 0;
   series: SeriesDef = seriesById('');
+  /** The class everyone is racing in, or '' for a series without classes. */
+  klass = '';
   results: ResultRow[] = [];
+  /** Finishing place of every slot in each round run so far. */
+  history: number[][] = [];
 
   get order(): string[] {
     return this.series.tracks;
@@ -45,26 +53,46 @@ export class Session {
     return modeById(this.series.mode).shop;
   }
 
-  /** `vehicles` holds each seat's choice; anything missing or not allowed in the series gets one that is. */
-  setup(devices: (number | null)[], mode: 'champ' | 'quick', seriesId: string, vehicles: (string | undefined)[] = []): void {
+  /** Seats ask for a vehicle and paint; anything missing, not allowed or already taken is replaced. */
+  setup(devices: (number | null)[], mode: 'champ' | 'quick', seriesId: string, o: SetupOpts = {}): void {
     this.series = seriesById(seriesId);
     this.mode = mode;
     this.round = 0;
-    const allowed = this.series.vehicles;
-    let human = 0;
+    this.history = [];
+    this.results = [];
+    const classes = classesOf(this.series);
+    this.klass = o.klass && classes.includes(o.klass) ? o.klass : classes[0] ?? '';
+    const allowed = vehiclesIn(this.series, this.klass);
     // A single race is run on mid-level parts so it is not a crawl.
     const up = freshUpgrades(this.catalog, mode === 'quick' ? 2 : 0);
+    const taken = new Set<number>();
+    devices.forEach((dev, slot) => {
+      const p = o.paints?.[slot];
+      if (dev !== null && p !== undefined && p >= 0 && p < PAINTS.length && !taken.has(p)) taken.add(p);
+    });
+    const free = (): number => {
+      let i = 0;
+      while (taken.has(i)) i++;
+      taken.add(i);
+      return i;
+    };
+    let human = 0;
     this.drivers = devices.map((device, slot) => {
-      const pick = vehicles[slot];
+      const pick = o.vehicles?.[slot];
+      const p = o.paints?.[slot];
+      const own = device !== null && p !== undefined && p >= 0 && p < PAINTS.length;
       return {
         slot, device,
         name: device === null ? CPU_NAMES[slot] : `P${++human}`,
         vehicle: pick && allowed.includes(pick) ? pick : allowed[slot % allowed.length],
+        color: own ? p : -1,
         money: this.series.startMoney, points: 0,
         up: { ...up },
         nitro: mode === 'quick' ? 5 : this.series.startNitro,
       };
     });
+    // With no paint asked for, every seat keeps its arcade colour.
+    for (const d of this.drivers) if (d.color < 0) d.color = taken.has(d.slot) ? free() : (taken.add(d.slot), d.slot);
   }
 
   get humans(): Driver[] {
@@ -90,7 +118,7 @@ export class Session {
       // Computer drivers hold a little back early in a championship.
       const skill = d.device !== null ? 1 : Math.min(1, 0.9 + d.slot * 0.015 + this.round * 0.008);
       return {
-        slot: d.slot, human: d.device !== null, name: d.name, vehicle: v.id, radius: v.radius,
+        slot: d.slot, human: d.device !== null, name: d.name, vehicle: v.id, color: d.color, radius: v.radius,
         stats: statsFor(v, this.catalog, d.up, skill), nitro: d.nitro,
       };
     });
@@ -98,14 +126,17 @@ export class Session {
 
   apply(race: Race): void {
     this.results = [];
+    const places: number[] = [];
     for (const t of race.trucks) {
       const d = this.drivers[t.slot];
       const prize = this.mode === 'champ' ? this.series.prizes[t.place] ?? 0 : 0;
       d.money += prize + t.cash;
       d.points += POINTS[t.place] ?? 0;
       d.nitro = this.mode === 'quick' ? 5 : t.nitro;
+      places[t.slot] = t.place;
       this.results.push({ slot: t.slot, name: d.name, place: t.place, prize, cash: t.cash, time: t.finished ? t.finishTime : -1 });
     }
+    this.history[this.round] = places;
     this.results.sort((a, b) => a.place - b.place);
   }
 
@@ -131,6 +162,13 @@ export class Session {
     return true;
   }
 
+  /** Repaints a driver, swapping with whoever already wears that paint so every vehicle stays distinct. */
+  paint(d: Driver, color: number): void {
+    const other = this.drivers.find((k) => k !== d && k.color === color);
+    if (other) other.color = d.color;
+    d.color = color;
+  }
+
   /** Computer drivers spend their winnings the same way players do. */
   aiShop(rand: () => number): void {
     const cats = this.catalog.categories;
@@ -145,5 +183,43 @@ export class Session {
 
   standings(): Driver[] {
     return [...this.drivers].sort((a, b) => b.points - a.points || b.money - a.money);
+  }
+
+  /** Keeps a championship in progress so it can be picked up again later. */
+  save(): void {
+    try {
+      const { drivers, mode, round, klass, history } = this;
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ series: this.series.id, drivers, mode, round, klass, history }));
+    } catch {
+      // Storage unavailable: the season lasts until the page closes.
+    }
+  }
+
+  /** Restores a saved championship. Returns false when there is none or its content is no longer in the game. */
+  load(): boolean {
+    try {
+      const o = JSON.parse(localStorage.getItem(SAVE_KEY) ?? 'null');
+      if (!o || !hasSeries(o.series) || !Array.isArray(o.drivers) || o.drivers.length !== 4) return false;
+      const series = seriesById(o.series);
+      const allowed = vehiclesIn(series, o.klass);
+      if (o.drivers.some((d: Driver) => !allowed.includes(d.vehicle)) || o.round >= series.tracks.length) return false;
+      this.series = series;
+      this.drivers = o.drivers;
+      this.mode = 'champ';
+      this.round = o.round;
+      this.klass = o.klass ?? '';
+      this.history = o.history ?? [];
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  static clearSave(): void {
+    try {
+      localStorage.removeItem(SAVE_KEY);
+    } catch {
+      // Nothing stored.
+    }
   }
 }

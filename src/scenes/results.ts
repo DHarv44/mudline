@@ -1,5 +1,7 @@
 import { VIEW_W } from '../core/config';
-import { TRUCK_COLORS } from '../content/drivers';
+import { PAINTS } from '../content/drivers';
+import { mulberry32 } from '../core/rng';
+import { Session } from '../game/session';
 import { trackById } from '../content/registry';
 import type { Game, Scene } from '../game/game';
 import { PLACE } from '../render/hud';
@@ -31,8 +33,16 @@ export function resultsScene(g: Game): Scene {
         }
         g.sfx.play('ok');
         if (!champ) g.go('tracks');
-        else if (ses.lastRound) g.go('champion');
-        else g.go(ses.shopScene);
+        else if (ses.lastRound) {
+          Session.clearSave();
+          g.go('champion');
+        } else if (ses.shopScene === 'garage') {
+          // Back to the garage with the next round ready; rivals have done their shopping.
+          ses.aiShop(mulberry32(Date.now() & 0xffff));
+          ses.round++;
+          ses.save();
+          g.go('garage');
+        } else g.go('shop');
       }
     },
     draw() {
@@ -42,11 +52,11 @@ export function resultsScene(g: Game): Scene {
         if (t < 0.25 * i) return;
         const y = 46 + i * 44;
         const d = ses.drivers[r.slot];
-        panel(s, 30, y, 420, 36, r.place === 0, TRUCK_COLORS[r.slot].css);
-        s.rect(30, y, 4, 36, TRUCK_COLORS[r.slot].css);
+        panel(s, 30, y, 420, 36, r.place === 0, PAINTS[d.color].css);
+        s.rect(30, y, 4, 36, PAINTS[d.color].css);
         s.text(PLACE[r.place], 44, y + 14, r.place === 0 ? UI.gold : '#fff');
         s.ctx.imageSmoothingEnabled = ses.style === 'modern';
-        drawVehicle(s.ctx, d.vehicle, r.slot, ses.style, 98, y + 21, 0, 0, 1.4);
+        drawVehicle(s.ctx, d.vehicle, d.color, ses.style, 98, y + 21, 0, 0, 1.4);
         s.ctx.imageSmoothingEnabled = false;
         s.text(r.name, 126, y + 14, d.device !== null ? '#fff' : UI.dim);
         s.text(clock(r.time), 192, y + 14, '#c8c8d4');

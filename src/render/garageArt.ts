@@ -84,20 +84,23 @@ export function drawBay(s: Screen, time: number): void {
 }
 
 /** The vehicle from the side, standing on the lift, with its fitted parts showing. */
-export function drawSide(s: Screen, v: VehicleDef, body: RGB, look: Record<PartVisual, number>, bottles: number): void {
+export function drawSide(
+  s: Screen, v: VehicleDef, body: RGB, look: Record<PartVisual, number>, bottles: number,
+  mid = 140, floor = FLOOR, width = 150,
+): void {
   const c = s.ctx;
   const side = v.side;
-  const scale = Math.min(3, 150 / (side.wheelbase + side.wheelR * 2 + 14));
+  const scale = Math.min(3, width / (side.wheelbase + side.wheelR * 2 + 14));
   const R = (side.wheelR + 1.6 * look.wheel) * scale;
   const ride = (1 + 5 * look.ride) * scale;
-  const ax = 140 - (side.wheelbase * scale) / 2;
-  const ay = FLOOR - R;
+  const ax = mid - (side.wheelbase * scale) / 2;
+  const ay = floor - R;
   const px = (x: number) => ax + x * scale;
   const py = (y: number) => ay + y * scale - ride;
 
   c.fillStyle = 'rgba(0,0,0,0.4)';
   c.beginPath();
-  c.ellipse(140, FLOOR + 2, (side.wheelbase * scale) / 2 + R + 6, 4, 0, 0, 6.3);
+  c.ellipse(mid, floor + 2, (side.wheelbase * scale) / 2 + R + 6, 4, 0, 0, 6.3);
   c.fill();
 
   // Exhaust: longer and fatter as the engine is built up, with a second pipe at the top.

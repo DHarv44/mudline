@@ -17,7 +17,7 @@ export interface Scene {
 }
 
 export type SceneName =
-  | 'title' | 'events' | 'lobby' | 'tracks' | 'race' | 'results' | 'shop' | 'garage' | 'champion' | 'options' | 'controls'
+  | 'title' | 'events' | 'season' | 'lobby' | 'tracks' | 'race' | 'results' | 'shop' | 'garage' | 'champion' | 'options' | 'controls'
   | 'online' | 'netLobby' | 'netRace';
 
 export interface Game {

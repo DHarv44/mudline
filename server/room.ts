@@ -1,5 +1,6 @@
 import { SIM_DT, SLOTS } from '../src/core/config';
-import { ALL_SERIES, hasSeries, seriesById, trackById } from '../src/content/registry';
+import { PAINTS } from '../src/content/drivers';
+import { ALL_SERIES, classesOf, hasSeries, seriesById, trackById, vehiclesIn } from '../src/content/registry';
 import { Session } from '../src/game/session';
 import type { ClientMsg, DriverInfo, Mode, RaceMsg, RoomState, ServerMsg } from '../src/net/protocol';
 import { aiControls } from '../src/sim/ai';
@@ -56,10 +57,16 @@ export class Room {
   private cfgTrack = 0;
   /** Each seat's chosen vehicle. */
   private vehicles: string[] = [];
+  private cfgClass = '';
+  /** Each seat's paint; every seat wears a different one. */
+  private paints: number[] = [0, 1, 2, 3];
 
-  /** Any seat whose vehicle the chosen series does not allow gets one that it does. */
+  /** Any seat whose vehicle the chosen series and class do not allow gets one that they do. */
   private fixVehicles(): void {
-    const allowed = seriesById(this.cfgSeries).vehicles;
+    const series = seriesById(this.cfgSeries);
+    const classes = classesOf(series);
+    if (!classes.includes(this.cfgClass)) this.cfgClass = classes[0] ?? '';
+    const allowed = vehiclesIn(series, this.cfgClass);
     for (let i = 0; i < SLOTS; i++) if (!allowed.includes(this.vehicles[i])) this.vehicles[i] = allowed[i % allowed.length];
   }
 
@@ -127,6 +134,7 @@ export class Room {
       // The host chooses what the room plays.
       if (c.id !== this.host || this.state !== 'lobby' || !hasSeries(String(m.series))) return;
       this.cfgSeries = String(m.series);
+      this.cfgClass = String(m.klass ?? '');
       this.cfgMode = m.mode === 'champ' ? 'champ' : 'quick';
       const n = seriesById(this.cfgSeries).tracks.length;
       this.cfgTrack = Math.max(0, Math.min(n - 1, Math.floor(Number(m.track) || 0)));
@@ -136,7 +144,9 @@ export class Room {
     }
     if (m.t === 'start') {
       if (c.id !== this.host || this.state !== 'lobby' || this.seats.every((s) => s === null)) return;
-      this.session.setup(this.seats.map((s) => (s === null ? null : 0)), this.cfgMode, this.cfgSeries, this.vehicles);
+      this.session.setup(this.seats.map((s) => (s === null ? null : 0)), this.cfgMode, this.cfgSeries, {
+        vehicles: this.vehicles, paints: this.paints, klass: this.cfgClass,
+      });
       if (this.cfgMode === 'quick') this.session.round = this.cfgTrack;
       this.beginRace();
       return;
@@ -144,8 +154,15 @@ export class Room {
     const slot = this.seats.indexOf(c.id);
     if (slot < 0) return;
     if (m.t === 'vehicle') {
-      if (this.state !== 'lobby' || !seriesById(this.cfgSeries).vehicles.includes(String(m.id))) return;
-      this.vehicles[slot] = String(m.id);
+      if (this.state !== 'lobby') return;
+      if (vehiclesIn(seriesById(this.cfgSeries), this.cfgClass).includes(String(m.id))) this.vehicles[slot] = String(m.id);
+      const paint = Math.floor(Number(m.paint));
+      if (paint >= 0 && paint < PAINTS.length && paint !== this.paints[slot]) {
+        // Whoever already wears that paint swaps, so every vehicle stays distinct.
+        const other = this.paints.indexOf(paint);
+        if (other >= 0) this.paints[other] = this.paints[slot];
+        this.paints[slot] = paint;
+      }
       this.sendRoom();
     } else if (m.t === 'in') {
       const s = m.s;
@@ -284,7 +301,7 @@ export class Room {
 
   private drivers(): DriverInfo[] {
     return this.session.drivers.map((d) => ({
-      slot: d.slot, client: this.seats[d.slot], name: d.name, vehicle: d.vehicle, money: d.money, points: d.points,
+      slot: d.slot, client: this.seats[d.slot], name: d.name, vehicle: d.vehicle, color: d.color, money: d.money, points: d.points,
       up: d.up, nitro: d.nitro, ready: this.ready[d.slot],
     }));
   }
@@ -307,7 +324,9 @@ export class Room {
       c.send({
         t: 'room', code: this.code, you: c.id, host: this.host, state: this.state, seats: this.seats,
         series: this.state === 'lobby' ? this.cfgSeries : this.session.series.id,
-        mode: this.cfgMode, track: this.cfgTrack, vehicles: this.vehicles,
+        mode: this.cfgMode, track: this.cfgTrack, vehicles: this.vehicles, paints: this.paints,
+        klass: this.state === 'lobby' ? this.cfgClass : this.session.klass,
+        round: this.session.round, history: this.session.history,
       });
     }
   }

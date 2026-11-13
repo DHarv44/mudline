@@ -56,9 +56,17 @@ export type LayerRect = [number, number, number, number, Token, number?];
 /** Colour token, brightness, then the polygon's points. Side view: x forward from the rear axle, y up is negative. */
 export type SideShape = [Token, number, ...[number, number][]];
 
+/** A racing class. Vehicles only ever race others of their own class. */
+export interface ClassDef {
+  id: string;
+  name: string;
+}
+
 export interface VehicleDef {
   id: string;
   name: string;
+  /** Class id. */
+  klass: string;
   radius: number;
   stats: Stats;
   /** Top view as a stack of flat slices, bottom first. */
@@ -110,8 +118,12 @@ export interface SeriesDef {
   id: string;
   name: string;
   mode: string;
+  /** The calendar, in order. Any track from any pack. */
   tracks: string[];
-  vehicles: string[];
+  /** A fixed list of vehicles everyone drives, for a series that is not run in classes. */
+  vehicles?: string[];
+  /** Classes the championship can be entered in; the field is then filled from that one class. */
+  classes?: string[];
   catalog: string;
   startMoney: number;
   startNitro: number;
@@ -120,6 +132,7 @@ export interface SeriesDef {
 
 export interface Pack {
   modes?: ModeDef[];
+  classes?: ClassDef[];
   series?: SeriesDef[];
   tracks?: TrackDef[];
   vehicles?: VehicleDef[];

@@ -1,5 +1,5 @@
 import { VIEW_H, VIEW_W } from '../core/config';
-import { TRUCK_COLORS } from '../content/drivers';
+import { PAINTS } from '../content/drivers';
 import type { Race } from '../sim/race';
 import type { Screen } from './screen';
 
@@ -11,7 +11,7 @@ export function drawHud(s: Screen, race: Race): void {
   trucks.forEach((t, i) => {
     const x = 5 + i * (w + 2);
     s.rect(x, 3, w, 22, 'rgba(8,8,14,0.72)');
-    s.rect(x, 3, 3, 22, TRUCK_COLORS[t.slot].css);
+    s.rect(x, 3, 3, 22, PAINTS[t.color].css);
     s.text(t.name, x + 7, 6, t.human ? '#fff' : '#9a9aa8', { shadow: false });
     s.text(PLACE[t.pos], x + w - 4, 6, t.pos === 0 ? '#ffd84a' : '#fff', { align: 'right', shadow: false });
     const lap = t.finished ? 'DONE' : `L${Math.max(1, Math.min(t.lap, race.laps))}/${race.laps}`;
@@ -56,6 +56,6 @@ function drawMinimap(s: Screen, race: Race): void {
   c.closePath();
   c.stroke();
   for (const t of race.trucks) {
-    s.rect(x0 + t.x * k - 1.5, y0 + t.y * k - 1.5, 3, 3, TRUCK_COLORS[t.slot].css);
+    s.rect(x0 + t.x * k - 1.5, y0 + t.y * k - 1.5, 3, 3, PAINTS[t.color].css);
   }
 }

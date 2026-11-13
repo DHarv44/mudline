@@ -1,6 +1,6 @@
 import { SLOTS, VIEW_W } from '../core/config';
-import { CPU_NAMES, TRUCK_COLORS } from '../content/drivers';
-import { modeById, seriesById, vehicleById } from '../content/registry';
+import { CPU_NAMES, PAINTS } from '../content/drivers';
+import { modeById, seriesById, vehicleById, vehiclesIn } from '../content/registry';
 import type { Game, Scene } from '../game/game';
 import { DEVICES } from '../input/devices';
 import { drawVehicle } from '../render/sprites';
@@ -10,14 +10,14 @@ import { backdrop, panel, UI } from '../ui/kit';
 export function lobbyScene(g: Game, arg: { series: string; mode: 'champ' | 'quick' }): Scene {
   const series = seriesById(arg.series);
   const style = modeById(series.mode).style;
-  const rides = series.vehicles;
+  const rides = vehiclesIn(series);
   const seats: (number | null)[] = new Array(SLOTS).fill(null);
   const pick: number[] = seats.map((_, i) => i % rides.length);
   let spin = 0;
 
   const start = () => {
     g.sfx.play('ok');
-    g.session.setup(seats, arg.mode, series.id, pick.map((p) => rides[p]));
+    g.session.setup(seats, arg.mode, series.id, { vehicles: pick.map((p) => rides[p]) });
     g.go(arg.mode === 'champ' ? 'race' : 'tracks');
   };
 
@@ -69,7 +69,7 @@ export function lobbyScene(g: Game, arg: { series: string; mode: 'champ' | 'quic
       for (let i = 0; i < SLOTS; i++) {
         const x = 12 + i * (w + 8);
         const dev = seats[i];
-        const col = TRUCK_COLORS[i];
+        const col = PAINTS[i];
         panel(s, x, 46, w, 172, dev !== null, col.css);
         s.rect(x, 46, w, 4, col.css);
         s.rect(x + 14, 62, 80, 62, '#b89058');

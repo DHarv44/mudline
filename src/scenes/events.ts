@@ -1,4 +1,4 @@
-import { modeById, seriesOf } from '../content/registry';
+import { modeById, seriesOf, vehiclesIn } from '../content/registry';
 import type { Game, Scene } from '../game/game';
 import { drawVehicle } from '../render/sprites';
 import { backdrop, cover, dirs, inBox, panel, UI } from '../ui/kit';
@@ -61,8 +61,9 @@ export function eventsScene(g: Game, modeId: string): Scene {
         panel(s, x, 42, w, 156, on);
         s.ctx.imageSmoothingEnabled = mode.style === 'modern';
         cover(s, g.tracks.thumb(series.tracks[0], mode.style), x + 4, 46, w - 8, 74);
-        const gap = (w - 16) / series.vehicles.length;
-        series.vehicles.forEach((v, k) => {
+        const rides = vehiclesIn(series);
+        const gap = (w - 16) / rides.length;
+        rides.forEach((v, k) => {
           drawVehicle(s.ctx, v, k % 4, mode.style, x + 8 + gap * (k + 0.5), 172, on ? spin * 1.5 + k : -Math.PI / 2, 0, 1.3);
         });
         s.ctx.imageSmoothingEnabled = false;

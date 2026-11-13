@@ -1,5 +1,5 @@
 import { SIM_DT, VIEW_H, VIEW_W } from '../core/config';
-import { MODES, seriesOf } from '../content/registry';
+import { classesOf, MODES, seriesOf, vehiclesIn } from '../content/registry';
 import type { Game, Scene } from '../game/game';
 import { Session } from '../game/session';
 import { RaceView } from '../render/raceView';
@@ -26,7 +26,8 @@ export function titleScene(g: Game): Scene {
     const all = MODES.flatMap((m) => seriesOf(m.id));
     const ses = new Session();
     const series = all[n % all.length];
-    ses.setup([null, null, null, null], 'quick', series.id);
+    const classes = classesOf(series);
+    ses.setup([null, null, null, null], 'quick', series.id, { klass: classes[n % Math.max(1, classes.length)] });
     ses.round = n++ % series.tracks.length;
     const built = g.tracks.get(ses.trackId, ses.style);
     race = new Race(built.track, ses.entries(), 2, Date.now() & 0xffff);
@@ -37,7 +38,12 @@ export function titleScene(g: Game): Scene {
 
   const choose = (i: number) => {
     g.sfx.play('ok');
-    if (i < top) g.go('events', MODES[i].id);
+    if (i < top) {
+      // A garage-based mode opens on the garage, or on choosing a championship when none is under way.
+      if (MODES[i].shop !== 'garage') g.go('events', MODES[i].id);
+      else if (g.session.load() && g.session.series.mode === MODES[i].id) g.go('garage');
+      else g.go('season', MODES[i].id);
+    }
     else if (i === top) g.go('online');
     else g.go('options');
   };
@@ -95,7 +101,7 @@ export function titleScene(g: Game): Scene {
         s.ctx.imageSmoothingEnabled = false;
         s.text(mode.name, x + cardW / 2, 158, on ? UI.gold : UI.text, { align: 'center', size: 16 });
         const tracks = new Set(all.flatMap((k) => k.tracks)).size;
-        const rides = new Set(all.flatMap((k) => k.vehicles)).size;
+        const rides = new Set(all.flatMap((k) => (classesOf(k).length ? classesOf(k).flatMap((c) => vehiclesIn(k, c)) : vehiclesIn(k)))).size;
         s.text(`${tracks} TRACKS  ${rides} ${rides === 1 ? 'VEHICLE' : 'VEHICLES'}`, x + cardW / 2, 179, UI.dim, { align: 'center', shadow: false });
       });
       EXTRA.forEach((label, i) => {

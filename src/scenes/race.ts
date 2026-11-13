@@ -16,6 +16,7 @@ export function raceScene(g: Game): Scene {
   const view = new RaceView(race, built, ses.style);
   const pause = new ListMenu(['RESUME', 'RESTART', 'QUIT']);
   const pad: Controls = { steer: 0, gas: 0, brake: 0, nitro: false };
+  const solo = ses.humans.length === 1;
   let paused = false;
   let pane = 0;
   let acc = 0;
@@ -25,7 +26,8 @@ export function raceScene(g: Game): Scene {
     const dev = ses.drivers[t.slot].device;
     if (dev === null) return aiControls(t, race, SIM_DT);
     if (t.finished) return aiControls(t, race, SIM_DT, 0.5);
-    const d = g.input.cur[dev];
+    // A lone player can drive with any keys or pad.
+    const d = solo ? g.input.merged() : g.input.cur[dev];
     pad.steer = d.steer;
     pad.gas = d.gas ? 1 : 0;
     pad.brake = d.brake ? 1 : 0;
@@ -46,7 +48,7 @@ export function raceScene(g: Game): Scene {
         const pick = pause.nav(g);
         if (pick === 0) paused = false;
         else if (pick === 1) g.go('race');
-        else if (pick === 2) g.go('title');
+        else if (pick === 2) g.go(ses.mode === 'champ' && ses.shopScene === 'garage' ? 'garage' : 'title');
         return;
       }
       intro -= dt;

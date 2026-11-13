@@ -35,21 +35,21 @@ const BIKE_SIDE: VehicleDef['side'] = {
   ],
 };
 
-export const VEHICLES: VehicleDef[] = [
+const BASE: VehicleDef[] = [
   {
-    id: 'mx250', name: 'SCRAMBLER 250', radius: 3.2,
+    id: 'mx250', name: 'SCRAMBLER 250', klass: 'bike', radius: 3.2,
     stats: { top: 88, accel: 96, grip: 4.4, turn: 4.3, mud: 0.42, land: 0.86, whoop: 0.97, jump: 1.25, air: 2.4, mass: 0.45, boost: 1.45, boostTime: 1 },
     layers: BIKE_LAYERS,
     side: BIKE_SIDE,
   },
   {
-    id: 'mx450', name: 'THUMPER 450', radius: 3.2,
+    id: 'mx450', name: 'THUMPER 450', klass: 'bike', radius: 3.2,
     stats: { top: 97, accel: 104, grip: 4, turn: 3.9, mud: 0.4, land: 0.84, whoop: 0.965, jump: 1.3, air: 2.2, mass: 0.5, boost: 1.45, boostTime: 1 },
     layers: BIKE_LAYERS,
     side: { ...BIKE_SIDE, wheelR: 8, exhaust: [-6, -13] },
   },
   {
-    id: 'quad', name: 'QUAD 400', radius: 3.8,
+    id: 'quad', name: 'QUAD 400', klass: 'quad', radius: 3.8,
     stats: { top: 86, accel: 88, grip: 5.4, turn: 3.8, mud: 0.5, land: 0.8, whoop: 0.96, jump: 1.1, air: 1.6, mass: 0.7, boost: 1.45, boostTime: 1 },
     layers: [
       wheels(1.8, 4.8, 2, 3.9, 'tyre'),
@@ -72,5 +72,15 @@ export const VEHICLES: VehicleDef[] = [
         ['metal', 0.8, [21, -24], [23, -24], [24, -15], [22, -15]],
       ],
     },
+  },
+];
+
+export const VEHICLES: VehicleDef[] = [
+  ...BASE,
+  // The big-bore quad: more speed and shove, slower to turn and heavier in the air.
+  {
+    ...BASE[2], id: 'quad700', name: 'BRUTE 700',
+    stats: { ...BASE[2].stats, top: 95, accel: 94, grip: 5, turn: 3.4, mass: 0.9, air: 1.3, jump: 1.05, land: 0.84 },
+    side: { ...BASE[2].side, wheelR: 8 },
   },
 ];

@@ -6,7 +6,7 @@ import { Track, wrapIdx } from '../track/build';
 import { Particles } from './particles';
 import { Controls, NO_INPUT, stepTruck, Truck } from './truck';
 
-export interface Entry { slot: number; human: boolean; name: string; vehicle: string; radius: number; stats: Stats; nitro: number }
+export interface Entry { slot: number; human: boolean; name: string; vehicle: string; color: number; radius: number; stats: Stats; nitro: number }
 export interface Pickup { x: number; y: number; type: 'nitro' | 'cash'; t: number }
 export interface RaceEvent { type: 'count' | 'go' | 'nitro' | 'land' | 'bump' | 'pickup' | 'lap' | 'finish'; slot: number }
 
@@ -40,7 +40,7 @@ export class Race {
       const i = n - 5 - 7 * (g >> 1);
       const lat = (g % 2 ? 1 : -1) * 7;
       this.trucks.push({
-        slot: e.slot, human: e.human, name: e.name, vehicle: e.vehicle, radius: e.radius, stats: e.stats,
+        slot: e.slot, human: e.human, name: e.name, vehicle: e.vehicle, color: e.color, radius: e.radius, stats: e.stats,
         x: track.sx[i] - track.ty[i] * lat, y: track.sy[i] + track.tx[i] * lat, z: 0, vz: 0,
         vx: 0, vy: 0, h: Math.atan2(track.ty[i], track.tx[i]),
         idx: i, lap: 0, cp: 0, passed: 0, score: 0, pos: g,

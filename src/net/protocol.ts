@@ -11,6 +11,7 @@ export interface DriverInfo {
   client: number | null;
   name: string;
   vehicle: string;
+  color: number;
   money: number;
   points: number;
   up: Upgrades;
@@ -23,8 +24,14 @@ export interface RoomMsg {
   t: 'room'; code: string; you: number; host: number; state: RoomState; seats: (number | null)[];
   /** What the host has chosen: the series, a championship or a single race, and which track for a single race. */
   series: string; mode: Mode; track: number;
-  /** The vehicle chosen for each truck slot. */
+  /** The class everyone races in, or '' where the series has none. */
+  klass: string;
+  /** The vehicle and paint chosen for each slot. */
   vehicles: string[];
+  paints: number[];
+  /** Round and finishing places so far, for the garage's schedule. */
+  round: number;
+  history: number[][];
 }
 /** entries are the trucks exactly as the server built them at the start, so a late joiner's copy matches. */
 export interface RaceMsg { t: 'race'; mode: Mode; round: number; trackId: string; laps: number; seed: number; entries: Entry[]; drivers: DriverInfo[] }
@@ -46,8 +53,8 @@ export type ServerMsg = RoomMsg | RaceMsg | SnapMsg | ResultsMsg | ShopMsg | Cha
 export type ClientMsg =
   | { t: 'create'; pid: string }
   | { t: 'join'; code: string; pid: string }
-  | { t: 'config'; series: string; mode: Mode; track: number }
-  | { t: 'vehicle'; id: string }
+  | { t: 'config'; series: string; klass: string; mode: Mode; track: number }
+  | { t: 'vehicle'; id: string; paint: number }
   | { t: 'start' }
   /** [steer, gas, brake, nitro] */
   | { t: 'in'; s: number[] }

@@ -132,7 +132,7 @@ export class RaceView {
       race.parts.draw(c);
     }
     const order = [...race.trucks].sort((a, b) => a.y - b.y);
-    for (const t of order) drawVehicle(c, t.vehicle, t.slot, this.style, t.x, t.y, t.h, t.z * 1.6);
+    for (const t of order) drawVehicle(c, t.vehicle, t.color, this.style, t.x, t.y, t.h, t.z * 1.6);
     c.restore();
     c.imageSmoothingEnabled = false;
   }

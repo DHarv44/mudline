@@ -1,10 +1,11 @@
 import { bajaPack } from '../packs/baja';
 import { corePack } from '../packs/core';
 import { motocrossPack } from '../packs/motocross';
-import type { Catalog, ModeDef, Pack, SeriesDef, Stats, TrackDef, Upgrades, VehicleDef } from './types';
+import { tourPack } from '../packs/tour';
+import type { Catalog, ClassDef, ModeDef, Pack, SeriesDef, Stats, TrackDef, Upgrades, VehicleDef } from './types';
 
 /** Every pack the game ships with. Adding content means adding a pack (or a file to one) and listing it here. */
-const PACKS: Pack[] = [corePack, motocrossPack, bajaPack];
+const PACKS: Pack[] = [corePack, motocrossPack, bajaPack, tourPack];
 
 function collect<T extends { id: string }>(pick: (p: Pack) => T[] | undefined): Map<string, T> {
   const m = new Map<string, T>();
@@ -35,6 +36,19 @@ export const vehicleById = (id: string): VehicleDef => need(vehicles, id, 'vehic
 export const catalogById = (id: string): Catalog => need(catalogs, id, 'catalog');
 export const seriesOf = (modeId: string): SeriesDef[] => ALL_SERIES.filter((s) => s.mode === modeId);
 export const hasSeries = (id: string): boolean => series.has(id);
+
+const classes = collect((p) => p.classes);
+export const classById = (id: string): ClassDef => need(classes, id, 'class');
+
+/** The classes a series can be entered in; empty for a series with a fixed vehicle list. */
+export const classesOf = (s: SeriesDef): string[] => (s.vehicles ? [] : s.classes ?? []);
+
+/** The vehicles that can line up in a series, for the chosen class where it has classes. */
+export function vehiclesIn(s: SeriesDef, klass?: string): string[] {
+  if (s.vehicles) return s.vehicles;
+  const k = klass && classesOf(s).includes(klass) ? klass : classesOf(s)[0];
+  return [...vehicles.values()].filter((v) => v.klass === k).map((v) => v.id);
+}
 
 const CAPPED: (keyof Stats)[] = ['mud', 'land', 'whoop'];
 

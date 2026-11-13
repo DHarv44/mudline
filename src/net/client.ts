@@ -128,9 +128,12 @@ export class NetClient {
   private sync(drivers: DriverInfo[]): void {
     const you = this.room?.you;
     const ses = this.g().session;
-    if (this.room) ses.series = seriesById(this.room.series);
+    if (this.room) {
+      ses.series = seriesById(this.room.series);
+      ses.klass = this.room.klass;
+    }
     ses.drivers = drivers.map((d) => ({
-      slot: d.slot, name: d.name, vehicle: d.vehicle, money: d.money, points: d.points, up: d.up, nitro: d.nitro,
+      slot: d.slot, name: d.name, vehicle: d.vehicle, color: d.color, money: d.money, points: d.points, up: d.up, nitro: d.nitro,
       device: d.client === null ? null : d.client === you ? 0 : REMOTE,
     }));
     this.ready = drivers.find((d) => d.client === you)?.ready ?? false;
@@ -147,6 +150,7 @@ export class NetClient {
     switch (m.t) {
       case 'room':
         this.room = m;
+        ses.history = m.history;
         this.code = m.code;
         this.tries = 0;
         this.reconnecting = false;

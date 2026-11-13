@@ -12,6 +12,8 @@ export interface Truck {
   name: string;
   /** Vehicle id, for drawing. */
   vehicle: string;
+  /** Paint index, for drawing. */
+  color: number;
   radius: number;
   stats: Stats;
   x: number; y: number; z: number; vz: number;

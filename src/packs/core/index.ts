@@ -14,10 +14,12 @@ export const corePack: Pack = {
       id: 'classic-cup', name: 'STADIUM CUP', mode: 'classic', tracks: STADIUM_IDS, vehicles: ['stadium'],
       catalog: 'classic', startMoney: 5000, startNitro: 3, prizes: [10000, 7000, 4000, 2000],
     },
-    {
-      id: 'stadium', name: 'STADIUM', mode: 'unlimited', tracks: STADIUM_IDS, vehicles: ['stadium', 'prerunner', 'dunebug'],
-      catalog: 'workshop', startMoney: 6000, startNitro: 3, prizes: [12000, 8000, 5000, 3000],
-    },
+  ],
+  classes: [
+    { id: 'bike', name: 'DIRT BIKES' },
+    { id: 'quad', name: 'QUADS' },
+    { id: 'truck', name: 'TRUCKS' },
+    { id: 'buggy', name: 'BUGGIES' },
   ],
   tracks: TRACKS,
   vehicles: VEHICLES,

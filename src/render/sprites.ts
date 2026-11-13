@@ -1,4 +1,4 @@
-import { TRUCK_COLORS } from '../content/drivers';
+import { PAINTS } from '../content/drivers';
 import { vehicleById } from '../content/registry';
 import type { RGB } from '../content/themes';
 import type { LayerRect, Token } from '../content/types';
@@ -95,8 +95,8 @@ function raster(layers: LayerRect[][], body: RGB, k: number, angles: number, fla
 
 const cache = new Map<string, Sheet>();
 
-function sheetFor(vehicleId: string, slot: number, style: Style): Sheet {
-  const key = `${vehicleId}/${slot}/${style}`;
+function sheetFor(vehicleId: string, color: number, style: Style): Sheet {
+  const key = `${vehicleId}/${color}/${style}`;
   let s = cache.get(key);
   if (!s) {
     const v = vehicleById(vehicleId);
@@ -104,18 +104,18 @@ function sheetFor(vehicleId: string, slot: number, style: Style): Sheet {
     const angles = style === 'modern' ? 64 : 32;
     // The shadow is the outline of the widest low slices.
     const foot: LayerRect[][] = [v.layers.slice(0, 4).flat()];
-    s = { sheet: raster(v.layers, TRUCK_COLORS[slot].rgb, k, angles, false), shadow: raster(foot, [0, 0, 0], k, angles, true), k, angles };
+    s = { sheet: raster(v.layers, PAINTS[color % PAINTS.length].rgb, k, angles, false), shadow: raster(foot, [0, 0, 0], k, angles, true), k, angles };
     cache.set(key, s);
   }
   return s;
 }
 
-/** Draws a vehicle at world position (x, y), `lift` pixels above its shadow. */
+/** Draws a vehicle in a paint at world position (x, y), `lift` pixels above its shadow. */
 export function drawVehicle(
-  ctx: CanvasRenderingContext2D, vehicleId: string, slot: number, style: Style,
+  ctx: CanvasRenderingContext2D, vehicleId: string, color: number, style: Style,
   x: number, y: number, heading: number, lift = 0, size = 1,
 ): void {
-  const s = sheetFor(vehicleId, slot, style);
+  const s = sheetFor(vehicleId, color, style);
   let f = Math.round((heading / (Math.PI * 2)) * s.angles) % s.angles;
   if (f < 0) f += s.angles;
   const F = FRAME * s.k;

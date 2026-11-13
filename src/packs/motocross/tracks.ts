@@ -22,11 +22,11 @@ export const TRACKS: TrackDef[] = [
   },
   {
     id: 'mx-rhythm', name: 'RHYTHM SECTION', size: [720, 405], theme: 'loam', laps: 2, half: 13,
-    points: [[360, 50], [600, 80], [670, 200], [600, 330], [360, 360], [210, 335], [150, 250], [210, 150], [360, 130], [520, 160], [550, 205], [520, 265], [360, 280], [250, 275], [120, 310], [60, 260], [55, 180], [120, 80]],
+    points: [[360, 350], [130, 345], [65, 290], [65, 120], [120, 62], [180, 110], [185, 230], [250, 285], [315, 230], [320, 110], [380, 62], [440, 110], [445, 230], [510, 285], [575, 230], [580, 110], [625, 62], [665, 120], [660, 290], [600, 345]],
     features: [
-      { type: 'jump', at: 0.03 }, { type: 'jump', at: 0.08 }, { type: 'jump', at: 0.13 }, { type: 'whoops', at: 0.24, len: 90 },
-      { type: 'jump', at: 0.36, power: 1.4 }, { type: 'water', at: 0.52, len: 26 }, { type: 'jump', at: 0.58 }, { type: 'jump', at: 0.63 },
-      { type: 'whoops', at: 0.74, len: 60 }, { type: 'jump', at: 0.93, power: 1.3 },
+      { type: 'jump', at: 0.04 }, { type: 'jump', at: 0.13 }, { type: 'jump', at: 0.18, power: 1.3 }, { type: 'whoops', at: 0.27, len: 80 },
+      { type: 'jump', at: 0.38 }, { type: 'jump', at: 0.43 }, { type: 'water', at: 0.51, len: 26 }, { type: 'jump', at: 0.58, power: 1.3 },
+      { type: 'whoops', at: 0.67, len: 70 }, { type: 'jump', at: 0.8 }, { type: 'jump', at: 0.88 }, { type: 'jump', at: 0.95, power: 1.2 },
     ],
   },
   {

@@ -10,7 +10,7 @@ export function wheels(x0: number, x1: number, y0: number, y1: number, t: Token)
 
 export const VEHICLES: VehicleDef[] = [
   {
-    id: 'stadium', name: 'STADIUM TRUCK', radius: 4.5,
+    id: 'stadium', name: 'STADIUM TRUCK', klass: 'truck', radius: 4.5,
     stats: { top: 92, accel: 78, grip: 5, turn: 3.5, mud: 0.5, land: 0.78, whoop: 0.955, jump: 1, air: 1.2, mass: 1, boost: 1.5, boostTime: 1.1 },
     layers: [
       wheels(2.5, 6.5, 3.2, 5.6, 'tyre'),
@@ -36,7 +36,7 @@ export const VEHICLES: VehicleDef[] = [
     },
   },
   {
-    id: 'prerunner', name: 'PRERUNNER', radius: 4.8,
+    id: 'prerunner', name: 'PRERUNNER', klass: 'truck', radius: 4.8,
     stats: { top: 98, accel: 70, grip: 4.6, turn: 3.2, mud: 0.56, land: 0.84, whoop: 0.965, jump: 1, air: 1, mass: 1.25, boost: 1.5, boostTime: 1.1 },
     layers: [
       wheels(3, 7.2, 3.3, 5.9, 'tyre'),

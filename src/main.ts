@@ -4,6 +4,7 @@ import { SIM_DT } from './core/config';
 import { ALL_TRACKS } from './content/registry';
 import { eventsScene } from './scenes/events';
 import { garageScene } from './scenes/garage';
+import { seasonScene } from './scenes/season';
 import { Game, Scene, SceneName, TrackCache } from './game/game';
 import { Session } from './game/session';
 import { loadSettings } from './game/settings';
@@ -33,6 +34,7 @@ const SCENES: Record<SceneName, (g: Game, arg: unknown) => Scene> = {
   events: (g, arg) => eventsScene(g, arg as string),
   lobby: (g, arg) => lobbyScene(g, arg as { series: string; mode: 'champ' | 'quick' }),
   garage: (g) => garageScene(g),
+  season: (g, arg) => seasonScene(g, arg as string),
   tracks: (g) => trackSelectScene(g),
   race: (g) => raceScene(g),
   results: (g) => resultsScene(g),
@@ -109,9 +111,9 @@ async function boot(): Promise<void> {
     },
     validate: () => ALL_TRACKS.map((d) => validateTrack(buildTrack(d))),
     /** Runs one round of a series with computer drivers only and reports the finishing times. */
-    sim(seriesId: string, round = 0, maxSec = 500) {
+    sim(seriesId: string, round = 0, klass = '', maxSec = 500) {
       const ses = new Session();
-      ses.setup([null, null, null, null], 'champ', seriesId);
+      ses.setup([null, null, null, null], 'champ', seriesId, { klass });
       ses.round = round;
       const track = game.tracks.track(ses.trackId);
       const race = new Race(track, ses.entries(), track.def.laps, 7);
@@ -119,6 +121,8 @@ async function boot(): Promise<void> {
       return {
         track: track.def.id, done: race.phase === 'done',
         times: race.trucks.map((t) => `${t.vehicle}:${t.finished ? t.finishTime.toFixed(0) : `lap${t.lap}`}`),
+        // Where anyone who failed to finish ended up, to find spots that trap the computer drivers.
+        lost: race.trucks.filter((t) => !t.finished).map((t) => [Math.round(t.x), Math.round(t.y), t.idx, track.n, t.cp, Math.round(Math.hypot(t.vx, t.vy))]),
       };
     },
   };

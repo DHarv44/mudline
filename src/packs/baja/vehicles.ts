@@ -1,9 +1,9 @@
 import type { VehicleDef } from '../../content/types';
 import { wheels } from '../core/vehicles';
 
-export const VEHICLES: VehicleDef[] = [
+const BASE: VehicleDef[] = [
   {
-    id: 'trophy', name: 'TROPHY TRUCK', radius: 5.2,
+    id: 'trophy', name: 'TROPHY TRUCK', klass: 'truck', radius: 5.2,
     stats: { top: 112, accel: 74, grip: 4.6, turn: 2.9, mud: 0.6, land: 0.9, whoop: 0.98, jump: 1.05, air: 0.9, mass: 1.6, boost: 1.5, boostTime: 1.2 },
     layers: [
       wheels(3.2, 7.8, 3.5, 6.3, 'tyre'),
@@ -32,7 +32,7 @@ export const VEHICLES: VehicleDef[] = [
     },
   },
   {
-    id: 'dunebug', name: 'DUNE BUGGY', radius: 4.4,
+    id: 'dunebug', name: 'DUNE BUGGY', klass: 'buggy', radius: 4.4,
     stats: { top: 104, accel: 86, grip: 4.9, turn: 3.4, mud: 0.5, land: 0.86, whoop: 0.97, jump: 1.15, air: 1.4, mass: 0.9, boost: 1.5, boostTime: 1.1 },
     layers: [
       wheels(2.8, 6.6, 2.9, 5.2, 'tyre'),
@@ -56,5 +56,15 @@ export const VEHICLES: VehicleDef[] = [
         ['light', 1, [16, -35], [22, -35], [22, -31], [16, -31]],
       ],
     },
+  },
+];
+
+export const VEHICLES: VehicleDef[] = [
+  ...BASE,
+  // A stripped rail: the buggy with the weight taken out, quicker and livelier but harsher over the rough.
+  {
+    ...BASE[1], id: 'sandrail', name: 'SAND RAIL',
+    stats: { ...BASE[1].stats, top: 100, accel: 96, grip: 4.5, turn: 3.7, land: 0.82, mass: 0.75, air: 1.7, jump: 1.2 },
+    side: { ...BASE[1].side, wheelR: 8 },
   },
 ];

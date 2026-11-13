@@ -1,6 +1,6 @@
 import { VIEW_W } from '../core/config';
 import { mulberry32 } from '../core/rng';
-import { TRUCK_COLORS } from '../content/drivers';
+import { PAINTS } from '../content/drivers';
 import type { Game, Scene } from '../game/game';
 import { drawVehicle } from '../render/sprites';
 import { backdrop, panel, UI } from '../ui/kit';
@@ -72,9 +72,9 @@ export function shopScene(g: Game): Scene {
       const x0 = (VIEW_W - humans.length * (w + 6) + 6) / 2;
       humans.forEach((d, i) => {
         const x = x0 + i * (w + 6);
-        panel(s, x, 38, w, 226, !ready[i], TRUCK_COLORS[d.slot].css);
-        s.rect(x, 38, w, 4, TRUCK_COLORS[d.slot].css);
-        drawVehicle(s.ctx, d.vehicle, d.slot, ses.style, x + 22, 62, 0, 0, 1.6);
+        panel(s, x, 38, w, 226, !ready[i], PAINTS[d.color].css);
+        s.rect(x, 38, w, 4, PAINTS[d.color].css);
+        drawVehicle(s.ctx, d.vehicle, d.color, ses.style, x + 22, 62, 0, 0, 1.6);
         s.text(d.name, x + 44, 48, '#fff');
         s.text(`$${d.money}`, x + 44, 60, UI.gold);
         rows.forEach((it, k) => {
