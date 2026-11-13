@@ -1,6 +1,6 @@
 import { SIM_DT, SLOTS } from '../src/core/config';
 import { PAINTS } from '../src/content/drivers';
-import { ALL_SERIES, classesOf, hasSeries, seriesById, trackById, vehiclesIn } from '../src/content/registry';
+import { ALL_SERIES, buildFor, calendar, classesOf, hasSeries, seriesById, trackById, vehiclesIn } from '../src/content/registry';
 import { Session } from '../src/game/session';
 import type { ClientMsg, DriverInfo, Mode, RaceMsg, RoomState, ServerMsg } from '../src/net/protocol';
 import { aiControls } from '../src/sim/ai';
@@ -18,11 +18,13 @@ export interface Conn {
 
 const built = new Map<string, Track>();
 
-function trackFor(id: string): Track {
-  let t = built.get(id);
+/** A track as one class races it; built once and kept. */
+function trackFor(id: string, klass: string): Track {
+  const key = `${id}/${klass}`;
+  let t = built.get(key);
   if (!t) {
-    t = buildTrack(trackById(id));
-    built.set(id, t);
+    t = buildTrack(trackById(id), buildFor(klass));
+    built.set(key, t);
   }
   return t;
 }
@@ -136,7 +138,7 @@ export class Room {
       this.cfgSeries = String(m.series);
       this.cfgClass = String(m.klass ?? '');
       this.cfgMode = m.mode === 'champ' ? 'champ' : 'quick';
-      const n = seriesById(this.cfgSeries).tracks.length;
+      const n = calendar(seriesById(this.cfgSeries), this.cfgClass).length;
       this.cfgTrack = Math.max(0, Math.min(n - 1, Math.floor(Number(m.track) || 0)));
       this.fixVehicles();
       this.sendRoom();
@@ -264,7 +266,7 @@ export class Room {
     for (const i of this.inputs) Object.assign(i, { steer: 0, gas: 0, brake: 0, nitro: false });
     const seed = (Math.random() * 0xffff) | 0;
     const entries = this.session.entries();
-    this.race = new Race(trackFor(def.id), entries, def.laps, seed);
+    this.race = new Race(trackFor(def.id, this.session.klass), entries, def.laps, seed);
     this.raceMsg = { t: 'race', mode: this.session.mode, round: this.session.round, trackId: def.id, laps: def.laps, seed, entries };
     this.acc = 0;
     this.state = 'race';

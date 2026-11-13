@@ -1,5 +1,5 @@
 import type { Sfx } from '../audio/sfx';
-import { trackById } from '../content/registry';
+import { buildFor, trackById } from '../content/registry';
 import type { InputHub } from '../input/devices';
 import type { NetClient } from '../net/client';
 import { paintModern } from '../render/painterModern';
@@ -40,20 +40,22 @@ export class TrackCache {
   private art = new Map<string, BuiltTrack>();
   private thumbs = new Map<string, HTMLCanvasElement>();
 
-  track(id: string): Track {
-    let t = this.built.get(id);
+  /** A track as one class races it; '' is the track as written, for a series without classes. */
+  track(id: string, klass = ''): Track {
+    const key = `${id}/${klass}`;
+    let t = this.built.get(key);
     if (!t) {
-      t = buildTrack(trackById(id));
-      this.built.set(id, t);
+      t = buildTrack(trackById(id), buildFor(klass));
+      this.built.set(key, t);
     }
     return t;
   }
 
-  get(id: string, style: Style): BuiltTrack {
-    const key = `${id}/${style}`;
+  get(id: string, style: Style, klass = ''): BuiltTrack {
+    const key = `${id}/${style}/${klass}`;
     let b = this.art.get(key);
     if (!b) {
-      const track = this.track(id);
+      const track = this.track(id, klass);
       const k = style === 'modern' ? Math.min(2, 2160 / track.w) : 1;
       b = { track, art: style === 'modern' ? paintModern(track, k) : paintRetro(track), k };
       this.art.set(key, b);

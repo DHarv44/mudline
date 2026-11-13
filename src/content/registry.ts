@@ -2,10 +2,11 @@ import { bajaPack } from '../packs/baja';
 import { corePack } from '../packs/core';
 import { motocrossPack } from '../packs/motocross';
 import { tourPack } from '../packs/tour';
-import type { Catalog, ClassDef, ModeDef, Pack, SeriesDef, Stats, TrackDef, Upgrades, VehicleDef } from './types';
+import { circuitsPack } from '../packs/circuits';
+import type { Catalog, ClassDef, CourseProfile, ModeDef, Pack, SeriesDef, Stats, TrackDef, Upgrades, VehicleDef } from './types';
 
 /** Every pack the game ships with. Adding content means adding a pack (or a file to one) and listing it here. */
-const PACKS: Pack[] = [corePack, motocrossPack, bajaPack, tourPack];
+const PACKS: Pack[] = [corePack, motocrossPack, bajaPack, circuitsPack, tourPack];
 
 function collect<T extends { id: string }>(pick: (p: Pack) => T[] | undefined): Map<string, T> {
   const m = new Map<string, T>();
@@ -48,6 +49,21 @@ export function vehiclesIn(s: SeriesDef, klass?: string): string[] {
   if (s.vehicles) return s.vehicles;
   const k = klass && classesOf(s).includes(klass) ? klass : classesOf(s)[0];
   return [...vehicles.values()].filter((v) => v.klass === k).map((v) => v.id);
+}
+
+/** A series' calendar for a class: its tracks, less any that do not suit that class. */
+export function calendar(s: SeriesDef, klass?: string): string[] {
+  if (!klass) return s.tracks;
+  const fit = s.tracks.filter((id) => {
+    const only = trackById(id).classes;
+    return !only || only.includes(klass);
+  });
+  return fit.length ? fit : s.tracks;
+}
+
+/** How to build a track for a class: its own jumps and whoops, and bridges at the crossovers. Nothing for no class. */
+export function buildFor(klass: string): { course?: CourseProfile; key?: string; bridges?: boolean } {
+  return klass && classes.has(klass) ? { course: classById(klass).course, key: klass, bridges: true } : {};
 }
 
 const CAPPED: (keyof Stats)[] = ['mud', 'land', 'whoop'];

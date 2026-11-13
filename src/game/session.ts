@@ -1,5 +1,5 @@
 import { CPU_NAMES, MAX_NITRO, PAINTS, POINTS } from '../content/drivers';
-import { catalogById, classesOf, freshUpgrades, hasSeries, modeById, seriesById, statsFor, vehicleById, vehiclesIn } from '../content/registry';
+import { calendar, catalogById, classesOf, freshUpgrades, hasSeries, modeById, seriesById, statsFor, vehicleById, vehiclesIn } from '../content/registry';
 import type { Catalog, SeriesDef, Upgrades } from '../content/types';
 import type { Entry, Race } from '../sim/race';
 
@@ -37,7 +37,7 @@ export class Session {
   history: number[][] = [];
 
   get order(): string[] {
-    return this.series.tracks;
+    return calendar(this.series, this.klass);
   }
 
   get catalog(): Catalog {
@@ -202,7 +202,7 @@ export class Session {
       if (!o || !hasSeries(o.series) || !Array.isArray(o.drivers) || o.drivers.length !== 4) return false;
       const series = seriesById(o.series);
       const allowed = vehiclesIn(series, o.klass);
-      if (o.drivers.some((d: Driver) => !allowed.includes(d.vehicle)) || o.round >= series.tracks.length) return false;
+      if (o.drivers.some((d: Driver) => !allowed.includes(d.vehicle)) || o.round >= calendar(series, o.klass).length) return false;
       this.series = series;
       this.drivers = o.drivers;
       this.mode = 'champ';

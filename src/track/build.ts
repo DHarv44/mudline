@@ -1,4 +1,5 @@
-import { TrackDef, DIRT, MUD, WATER, JUMP, WHOOPS, SAND, FeatureType } from '../content/types';
+import { CourseProfile, TrackDef, DIRT, MUD, WATER, JUMP, WHOOPS, SAND, FeatureType } from '../content/types';
+import { findCrossings, layCourse } from './course';
 
 export interface Track {
   def: TrackDef;
@@ -22,7 +23,17 @@ export interface Track {
   sd: Float32Array;
   near: Uint16Array;
   surf: Uint8Array;
+  /** 1 on samples that are up on a bridge deck. */
+  level: Uint8Array;
+  spans: Span[];
+  /** 1 where nothing should be built or dropped: on, under and beside bridges. */
+  blocked: Uint8Array;
+  /** True when vehicles are held to their own stretch of track (needed for bridges). */
+  local: boolean;
 }
+
+/** A bridge deck: its middle sample and how many samples it reaches either way. */
+export interface Span { at: number; half: number }
 
 const SPACING = 2;
 const FAR = 10;
@@ -73,7 +84,15 @@ function resample(points: [number, number][]): { xs: number[]; ys: number[] } {
   return { xs, ys };
 }
 
-export function buildTrack(def: TrackDef): Track {
+export interface BuildOpts {
+  /** Rebuild the jumps and whoops to this class profile; `key` makes each class's layout its own. */
+  course?: CourseProfile;
+  key?: string;
+  /** Turn every crossover into a bridge, with each vehicle held to its own stretch of track. */
+  bridges?: boolean;
+}
+
+export function buildTrack(def: TrackDef, opts: BuildOpts = {}): Track {
   const w = def.size?.[0] ?? 480;
   const h = def.size?.[1] ?? 270;
   const { xs, ys } = resample(def.points);
@@ -90,11 +109,39 @@ export function buildTrack(def: TrackDef): Track {
     ty[i] = (sy[b] - sy[a]) / l;
   }
 
+  const half = def.half;
+  const line = { n, half, sx, sy, tx, ty };
+  const level = new Uint8Array(n);
+  const blocked = new Uint8Array(n);
+  const spans: Span[] = [];
+  if (opts.bridges) {
+    for (const c of findCrossings(line)) {
+      spans.push({ at: c.upper, half: c.span });
+      for (let k = -c.span; k <= c.span; k++) level[(c.upper + k + n) % n] = 1;
+      for (let k = -c.span - 14; k <= c.span + 14; k++) {
+        blocked[(c.upper + k + n) % n] = 1;
+        blocked[(c.lower + k + n) % n] = 1;
+      }
+    }
+  }
+  let features = def.features;
+  if (opts.course) {
+    // Hazards stay where the track's author put them, unless a bridge now stands there.
+    const hazards = def.features.filter((f) => f.type !== 'jump' && f.type !== 'whoops' && !blocked[Math.round(f.at * n) % n]);
+    const taken = blocked.slice();
+    for (const f of hazards) {
+      const i0 = Math.round(f.at * n);
+      const count = Math.round((f.len ?? DEF_LEN[f.type]) / SPACING);
+      for (let k = -8; k < count + 8; k++) taken[(i0 + k + n) % n] = 1;
+    }
+    features = [...hazards, ...layCourse(line, opts.course, taken, `${def.id}/${opts.key ?? ''}`)];
+  }
+
   const sampleSurf = new Uint8Array(n);
   const sampleRel = new Float32Array(n);
   const sampleShade = new Uint8Array(n);
   const samplePow = new Float32Array(n).fill(1);
-  for (const f of def.features) {
+  for (const f of features) {
     const i0 = Math.round(f.at * n);
     const count = Math.max(2, Math.round((f.len ?? DEF_LEN[f.type]) / SPACING));
     for (let k = 0; k < count; k++) {
@@ -106,11 +153,12 @@ export function buildTrack(def: TrackDef): Track {
     if (f.type === 'jump') for (let k = 0; k < 3; k++) sampleShade[(i0 + count + k) % n] = 1;
   }
 
-  const half = def.half;
   const sd = new Float32Array(w * h).fill(FAR);
   const near = new Uint16Array(w * h);
   const R = half + FAR;
   for (let i = 0; i < n; i++) {
+    // The ground map leaves bridge decks out, so the road beneath runs through unbroken.
+    if (level[i]) continue;
     const x0 = Math.max(0, Math.floor(sx[i] - R));
     const x1 = Math.min(w - 1, Math.ceil(sx[i] + R));
     const y0 = Math.max(0, Math.floor(sy[i] - R));
@@ -129,7 +177,46 @@ export function buildTrack(def: TrackDef): Track {
   const surf = new Uint8Array(w * h);
   for (let p = 0; p < surf.length; p++) surf[p] = sd[p] < 0 ? sampleSurf[near[p]] : DIRT;
 
-  return { def, w, h, n, half, sx, sy, tx, ty, sampleSurf, sampleRel, sampleShade, samplePow, sd, near, surf };
+  return {
+    def, w, h, n, half, sx, sy, tx, ty, sampleSurf, sampleRel, sampleShade, samplePow, sd, near, surf,
+    level, spans, blocked, local: !!opts.bridges,
+  };
+}
+
+export interface Nearest { j: number; d: number; nx: number; ny: number }
+
+/**
+ * The nearest centreline sample to a point, looking only along the stretch of track around `idx`.
+ * `d` is the signed distance to that stretch's edge and (nx, ny) points away from its centre.
+ * This is what keeps a vehicle on a bridge from "seeing" the road underneath, and the other way round.
+ */
+export function localNearest(t: Track, idx: number, x: number, y: number, out: Nearest): void {
+  const n = t.n;
+  const base = Math.round(idx);
+  let best = base % n;
+  let bd = Infinity;
+  for (let k = -14; k <= 34; k++) {
+    const i = (base + k + n * 2) % n;
+    const d = (t.sx[i] - x) ** 2 + (t.sy[i] - y) ** 2;
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
+  }
+  if (bd > (t.half * 2.4) ** 2) {
+    for (let i = 0; i < n; i += 2) {
+      const d = (t.sx[i] - x) ** 2 + (t.sy[i] - y) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = i;
+      }
+    }
+  }
+  const dist = Math.sqrt(bd);
+  out.j = best;
+  out.d = dist - t.half;
+  out.nx = dist > 1e-4 ? (x - t.sx[best]) / dist : 0;
+  out.ny = dist > 1e-4 ? (y - t.sy[best]) / dist : 0;
 }
 
 /** Bilinear signed distance to the track edge. */

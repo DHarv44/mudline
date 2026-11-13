@@ -30,7 +30,8 @@ export const TRACKS: TrackDef[] = [
     ],
   },
   {
-    id: 'mx-arena', name: 'ARENA CROSS', theme: 'dusk', laps: 4, half: 12,
+    // Too tight for anything with a cab.
+    id: 'mx-arena', name: 'ARENA CROSS', theme: 'dusk', laps: 4, half: 12, classes: ['bike', 'quad'],
     points: [[240, 236], [90, 232], [48, 190], [60, 120], [48, 72], [100, 46], [180, 60], [240, 100], [300, 60], [380, 46], [432, 72], [420, 120], [432, 190], [390, 232]],
     features: [
       { type: 'jump', at: 0.06 }, { type: 'jump', at: 0.24 }, { type: 'whoops', at: 0.36, len: 44 }, { type: 'jump', at: 0.52 },

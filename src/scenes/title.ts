@@ -28,8 +28,8 @@ export function titleScene(g: Game): Scene {
     const series = all[n % all.length];
     const classes = classesOf(series);
     ses.setup([null, null, null, null], 'quick', series.id, { klass: classes[n % Math.max(1, classes.length)] });
-    ses.round = n++ % series.tracks.length;
-    const built = g.tracks.get(ses.trackId, ses.style);
+    ses.round = n++ % ses.order.length;
+    const built = g.tracks.get(ses.trackId, ses.style, ses.klass);
     race = new Race(built.track, ses.entries(), 2, Date.now() & 0xffff);
     race.count = 0.5;
     view = new RaceView(race, built, ses.style);

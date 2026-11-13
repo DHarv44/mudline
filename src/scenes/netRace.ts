@@ -18,7 +18,7 @@ export function netRaceScene(g: Game, msg: RaceMsg): Scene {
   const net = g.net;
   const ses = g.session;
   const def = trackById(msg.trackId);
-  const built = g.tracks.get(def.id, ses.style);
+  const built = g.tracks.get(def.id, ses.style, ses.klass);
   const mySlot = msg.drivers.find((d) => d.client === net.room?.you)?.slot ?? -1;
   // Only this player counts as "human" here, so the camera follows them on long tracks.
   const entries = msg.entries.map((e) => ({ ...e, human: e.slot === mySlot }));

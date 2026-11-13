@@ -1,5 +1,7 @@
 import { DIRT, JUMP, MUD, SAND, Stats, WATER, WHOOPS } from '../content/types';
-import { nearAt, sdAt, surfAt } from '../track/build';
+import { localNearest, nearAt, Nearest, sdAt, surfAt } from '../track/build';
+
+const NEAR: Nearest = { j: 0, d: 0, nx: 0, ny: 0 };
 import type { Race } from './race';
 
 export interface Controls { steer: number; gas: number; brake: number; nitro: boolean }
@@ -39,6 +41,10 @@ export interface Truck {
   whoop: number;
   bigAir: boolean;
   slip: number;
+  /** 1 while up on a bridge deck. */
+  level: number;
+  /** Smoothed steering input, for drawing turned wheels and leaning riders. */
+  steer: number;
   ai: { lane: number; laneT: number; stuck: number; rev: number };
 }
 
@@ -52,7 +58,17 @@ export function stepTruck(t: Truck, c: Controls, race: Race, dt: number): void {
   const tr = race.track;
   const st = t.stats;
   const grounded = t.z <= 0;
-  const surf = grounded ? surfAt(tr, t.x, t.y) : DIRT;
+  let surf = DIRT;
+  if (tr.local) {
+    // On a track with bridges, everything is read from the vehicle's own stretch of road.
+    localNearest(tr, t.idx, t.x, t.y, NEAR);
+    t.level = tr.level[NEAR.j];
+    if (race.mirror) t.idx = NEAR.j;
+    if (grounded) surf = tr.sampleSurf[NEAR.j];
+  } else if (grounded) {
+    surf = surfAt(tr, t.x, t.y);
+  }
+  t.steer += (c.steer - t.steer) * Math.min(1, dt * 10);
   let maxV = st.top;
   let acc = st.accel;
   let grip = st.grip;
@@ -66,7 +82,7 @@ export function stepTruck(t: Truck, c: Controls, race: Race, dt: number): void {
     maxV *= 0.55 + 0.45 * st.mud;
     grip *= 0.75;
   } else if (surf === JUMP) {
-    t.lastPow = tr.samplePow[nearAt(tr, t.x, t.y)];
+    t.lastPow = tr.samplePow[tr.local ? NEAR.j : nearAt(tr, t.x, t.y)];
   }
   if (c.nitro && !t.nitroHeld && t.nitro > 0 && t.nitroT <= 0 && grounded) {
     t.nitro--;
@@ -141,7 +157,7 @@ export function stepTruck(t: Truck, c: Controls, race: Race, dt: number): void {
           race.parts.emit(t.x, t.y, Math.cos(a) * 30, Math.sin(a) * 30, 0.4, '#e8c898', 1.5);
         }
       }
-      t.lastSurf = surfAt(tr, t.x, t.y);
+      t.lastSurf = tr.local ? tr.sampleSurf[NEAR.j] : surfAt(tr, t.x, t.y);
     }
   }
 
@@ -151,10 +167,21 @@ export function stepTruck(t: Truck, c: Controls, race: Race, dt: number): void {
 
 function collideWall(t: Truck, race: Race, dt: number): void {
   const tr = race.track;
-  const d = sdAt(tr, t.x, t.y) + t.radius;
+  let d: number;
+  let gx: number;
+  let gy: number;
+  if (tr.local) {
+    localNearest(tr, t.idx, t.x, t.y, NEAR);
+    d = NEAR.d + t.radius;
+    gx = NEAR.nx;
+    gy = NEAR.ny;
+  } else {
+    d = sdAt(tr, t.x, t.y) + t.radius;
+    if (d <= 0) return;
+    gx = sdAt(tr, t.x + 1, t.y) - sdAt(tr, t.x - 1, t.y);
+    gy = sdAt(tr, t.x, t.y + 1) - sdAt(tr, t.x, t.y - 1);
+  }
   if (d <= 0) return;
-  const gx = sdAt(tr, t.x + 1, t.y) - sdAt(tr, t.x - 1, t.y);
-  const gy = sdAt(tr, t.x, t.y + 1) - sdAt(tr, t.x, t.y - 1);
   const len = Math.hypot(gx, gy);
   if (len < 1e-4) {
     // Somehow beyond the barrier: put the truck back on the racing line.

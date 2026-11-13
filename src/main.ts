@@ -110,12 +110,24 @@ async function boot(): Promise<void> {
       if (draw) frame(0, true);
     },
     validate: () => ALL_TRACKS.map((d) => validateTrack(buildTrack(d))),
+    /** How a class's version of a track came out: bridges and what was built on it. */
+    course(id: string, klass: string) {
+      const t = game.tracks.track(id, klass);
+      let jumps = 0;
+      let whoops = 0;
+      for (let i = 0; i < t.n; i++) {
+        const prev = t.sampleSurf[(i + t.n - 1) % t.n];
+        if (t.sampleSurf[i] === 3 && prev !== 3) jumps++;
+        if (t.sampleSurf[i] === 4 && prev !== 4) whoops++;
+      }
+      return { id, klass, bridges: t.spans.length, jumps, whoops };
+    },
     /** Runs one round of a series with computer drivers only and reports the finishing times. */
     sim(seriesId: string, round = 0, klass = '', maxSec = 500) {
       const ses = new Session();
       ses.setup([null, null, null, null], 'champ', seriesId, { klass });
       ses.round = round;
-      const track = game.tracks.track(ses.trackId);
+      const track = game.tracks.track(ses.trackId, ses.klass);
       const race = new Race(track, ses.entries(), track.def.laps, 7);
       while (race.phase !== 'done' && race.time < maxSec) race.step(SIM_DT, (t) => aiControls(t, race, SIM_DT, t.finished ? 0.5 : 1));
       return {

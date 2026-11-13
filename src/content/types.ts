@@ -23,9 +23,17 @@ export interface TrackDef {
   half: number;
   /** Closed loop of control points; the start line sits on the first one. */
   points: [number, number][];
-  /** `at` is the fraction of a lap from the start line; `len` is in pixels; `power` scales a jump. */
-  features: { type: FeatureType; at: number; len?: number; power?: number }[];
+  /**
+   * `at` is the fraction of a lap from the start line; `len` is in pixels; `power` scales a jump.
+   * Raced as written when there are no classes. In a class, the mud, water and sand stay where they are
+   * and the jumps and whoops are rebuilt to suit that class.
+   */
+  features: Feature[];
+  /** Classes this track is suitable for; every class when left out. */
+  classes?: string[];
 }
+
+export interface Feature { type: FeatureType; at: number; len?: number; power?: number }
 
 export interface Stats {
   top: number;
@@ -56,10 +64,31 @@ export type LayerRect = [number, number, number, number, Token, number?];
 /** Colour token, brightness, then the polygon's points. Side view: x forward from the rear axle, y up is negative. */
 export type SideShape = [Token, number, ...[number, number][]];
 
+/**
+ * How a class likes its course laid out. The builder reads a track's straights and fits jumps and whoops
+ * to these numbers, so one layout rides differently for bikes than for trucks.
+ */
+export interface CourseProfile {
+  /** Most jumps in a row on one straight. */
+  rhythm: number;
+  /** Pixels between jumps in a rhythm section. */
+  gap: number;
+  /** Launch strength of a rhythm jump, and of a lone big one. */
+  power: number;
+  big: number;
+  /** Length of a ramp in pixels. */
+  ramp: number;
+  /** Share of straights given over to whoops (0..1). */
+  whoops: number;
+  /** Shortest straight worth building on, in pixels. */
+  minRun: number;
+}
+
 /** A racing class. Vehicles only ever race others of their own class. */
 export interface ClassDef {
   id: string;
   name: string;
+  course: CourseProfile;
 }
 
 export interface VehicleDef {

@@ -1,6 +1,6 @@
 import { SLOTS, VIEW_W } from '../core/config';
 import { CPU_NAMES, PAINTS } from '../content/drivers';
-import { ALL_SERIES, classById, classesOf, modeById, seriesById, trackById, vehicleById, vehiclesIn } from '../content/registry';
+import { ALL_SERIES, calendar, classById, classesOf, modeById, seriesById, trackById, vehicleById, vehiclesIn } from '../content/registry';
 import type { Game, Scene } from '../game/game';
 import { drawVehicle } from '../render/sprites';
 import { backdrop, dirs, panel, UI } from '../ui/kit';
@@ -23,7 +23,7 @@ export function netLobbyScene(g: Game): Scene {
     const series = seriesById(room.series);
     if (r === 'series') return `SERIES < ${modeById(series.mode).name} ${series.name} >`;
     if (r === 'klass') return `CLASS < ${classById(room.klass).name} >`;
-    if (r === 'event') return `EVENT < ${room.mode === 'champ' ? 'CHAMPIONSHIP' : trackById(series.tracks[room.track]).name} >`;
+    if (r === 'event') return `EVENT < ${room.mode === 'champ' ? 'CHAMPIONSHIP' : trackById(calendar(series, room.klass)[room.track]).name} >`;
     if (r === 'vehicle') return `VEHICLE < ${vehicleById(room.vehicles[mySlot()]).name} >`;
     if (r === 'paint') return `PAINT < ${PAINTS[room.paints[mySlot()]].name} >`;
     if (r === 'start') return 'START';
@@ -43,7 +43,7 @@ export function netLobbyScene(g: Game): Scene {
       net.send({ t: 'config', series: series.id, klass: all[wrap(Math.max(0, all.indexOf(room.klass)), all.length)], mode: room.mode, track: room.track });
     } else if (r === 'event') {
       // Championship first, then each track as a single race.
-      const n = series.tracks.length + 1;
+      const n = calendar(series, room.klass).length + 1;
       const to = wrap(room.mode === 'champ' ? 0 : room.track + 1, n);
       net.send({ t: 'config', series: series.id, klass: room.klass, mode: to === 0 ? 'champ' : 'quick', track: Math.max(0, to - 1) });
     } else if (r === 'vehicle') {
@@ -118,7 +118,7 @@ export function netLobbyScene(g: Game): Scene {
       menu.draw(g, 60, 132, 14);
       if (net.watching) s.text('ROOM IS FULL - YOU ARE WATCHING', 300, 220, UI.cool, { align: 'center' });
       else if (!net.isHost) {
-        const what = room.mode === 'champ' ? 'CHAMPIONSHIP' : trackById(series.tracks[room.track]).name;
+        const what = room.mode === 'champ' ? 'CHAMPIONSHIP' : trackById(calendar(series, room.klass)[room.track]).name;
         const cls = room.klass ? `${classById(room.klass).name} - ` : '';
         s.text(series.name, 340, 196, UI.gold, { align: 'center' });
         s.text(`${cls}${what}`, 340, 210, UI.dim, { align: 'center', size: 6 });

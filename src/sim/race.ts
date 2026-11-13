@@ -46,7 +46,7 @@ export class Race {
         idx: i, lap: 0, cp: 0, passed: 0, score: 0, pos: g,
         finished: false, finishTime: 0, place: -1,
         nitro: e.nitro, nitroT: 0, nitroHeld: false, cash: 0,
-        lastSurf: 0, lastPow: 1, whoop: 0, bigAir: false, slip: 0,
+        lastSurf: 0, lastPow: 1, level: 0, steer: 0, whoop: 0, bigAir: false, slip: 0,
         ai: { lane: lat, laneT: 1 + this.rand() * 2, stuck: 0, rev: 0 },
       });
     });
@@ -160,6 +160,8 @@ export class Race {
         const p = ts[a];
         const q = ts[b];
         if (Math.abs(p.z - q.z) > 4) continue;
+        // One on the bridge and one beneath it pass clean.
+        if (this.track.local && p.level !== q.level) continue;
         const min = p.radius + q.radius;
         const dx = q.x - p.x;
         const dy = q.y - p.y;
@@ -197,7 +199,7 @@ export class Race {
       const cap = Math.round(3 * tr.w / VIEW_W);
       if (this.pickups.length < cap) {
         const i = (this.rand() * tr.n) | 0;
-        if (tr.sampleSurf[i] !== JUMP) {
+        if (tr.sampleSurf[i] !== JUMP && !tr.blocked[i]) {
           const lat = (this.rand() - 0.5) * tr.half * 1.2;
           this.pickups.push({ x: tr.sx[i] - tr.ty[i] * lat, y: tr.sy[i] + tr.tx[i] * lat, type: this.rand() < 0.5 ? 'nitro' : 'cash', t: 14 });
         }
