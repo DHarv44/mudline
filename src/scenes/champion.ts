@@ -12,7 +12,7 @@ export function championScene(g: Game): Scene {
   return {
     update(dt) {
       t += dt;
-      if (t > 1 && g.input.anyHit('ok') >= 0) {
+      if (t > 1 && (g.input.anyHit('ok') >= 0 || g.screen.mouse.click)) {
         if (g.net.online) {
           if (g.net.isHost) g.net.send({ t: 'next' });
           return;

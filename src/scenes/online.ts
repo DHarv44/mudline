@@ -42,6 +42,7 @@ export function onlineScene(g: Game, invite?: string): Scene {
       if (mode === 'invite') {
         let dev = g.input.anyHit('gas');
         if (dev < 0) dev = g.input.anyHit('ok');
+        if (dev < 0 && g.screen.mouse.click) dev = 0;
         if (dev >= 0 && can) {
           g.sfx.play('ok');
           join(dev);

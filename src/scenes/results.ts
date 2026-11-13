@@ -20,7 +20,7 @@ export function resultsScene(g: Game): Scene {
   return {
     update(dt) {
       t += dt;
-      if (t > 0.6 && g.input.anyHit('ok') >= 0) {
+      if (t > 0.6 && (g.input.anyHit('ok') >= 0 || g.screen.mouse.click)) {
         if (g.net.online) {
           if (g.net.isHost) {
             g.sfx.play('ok');

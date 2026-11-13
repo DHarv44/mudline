@@ -53,6 +53,7 @@ async function boot(): Promise<void> {
   sfx.volume = settings.volume;
   sfx.engines = settings.engines;
   input.onGesture = () => sfx.unlock();
+  window.addEventListener('mousedown', () => sfx.unlock());
 
   let scene: Scene;
   let sceneName: SceneName = 'title';
@@ -75,6 +76,7 @@ async function boot(): Promise<void> {
   const frame = (dt: number, draw: boolean) => {
     input.poll();
     scene.update(dt);
+    screen.endInput();
     if (draw) {
       screen.begin();
       scene.draw();

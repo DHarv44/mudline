@@ -9,6 +9,9 @@ export class Screen {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   crt = true;
+  /** Pointer position in the 480x270 game space; `click` and `moved` are true for one frame. */
+  mouse = { x: -1, y: -1, click: false, moved: false };
+  private hideTimer = 0;
   private scale = 1;
   private ox = 0;
   private oy = 0;
@@ -18,6 +21,29 @@ export class Screen {
     this.ctx = this.canvas.getContext('2d', { alpha: false })!;
     window.addEventListener('resize', () => this.resize());
     this.resize();
+    const at = (e: MouseEvent) => {
+      const dpr = window.devicePixelRatio || 1;
+      this.mouse.x = (e.clientX * dpr - this.ox) / this.scale;
+      this.mouse.y = (e.clientY * dpr - this.oy) / this.scale;
+      // The pointer shows while the mouse is in use and hides again once it rests, so it stays out of a race.
+      this.canvas.style.cursor = 'default';
+      window.clearTimeout(this.hideTimer);
+      this.hideTimer = window.setTimeout(() => (this.canvas.style.cursor = 'none'), 2500);
+    };
+    window.addEventListener('mousemove', (e) => {
+      at(e);
+      this.mouse.moved = true;
+    });
+    window.addEventListener('mousedown', (e) => {
+      at(e);
+      if (e.button === 0) this.mouse.click = true;
+    });
+  }
+
+  /** Clears the one-frame mouse flags; called after each update. */
+  endInput(): void {
+    this.mouse.click = false;
+    this.mouse.moved = false;
   }
 
   resize(): void {
