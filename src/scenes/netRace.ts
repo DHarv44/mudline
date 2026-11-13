@@ -1,5 +1,5 @@
 import { SIM_DT, VIEW_H, VIEW_W } from '../core/config';
-import { trackById } from '../content/tracks';
+import { trackById } from '../content/registry';
 import type { Game, Scene } from '../game/game';
 import { Mirror } from '../net/mirror';
 import type { RaceMsg } from '../net/protocol';
@@ -18,14 +18,14 @@ export function netRaceScene(g: Game, msg: RaceMsg): Scene {
   const net = g.net;
   const ses = g.session;
   const def = trackById(msg.trackId);
-  const built = g.tracks.get(def.id);
+  const built = g.tracks.get(def.id, ses.style);
   const mySlot = msg.drivers.find((d) => d.client === net.room?.you)?.slot ?? -1;
   // Only this player counts as "human" here, so the camera follows them on long tracks.
   const entries = msg.entries.map((e) => ({ ...e, human: e.slot === mySlot }));
   const race = new Race(built.track, entries, msg.laps, msg.seed);
   race.mirror = true;
   const mirror = new Mirror(race, mySlot);
-  const view = new RaceView(race, built.art);
+  const view = new RaceView(race, built, ses.style);
   const pause = new ListMenu(['RESUME', 'LEAVE ROOM']);
   const pad: Controls = { steer: 0, gas: 0, brake: 0, nitro: false };
   let menuOpen = false;

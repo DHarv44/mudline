@@ -1,4 +1,4 @@
-import { TrackDef, DIRT, MUD, WATER, JUMP, WHOOPS, FeatureType } from '../content/tracks';
+import { TrackDef, DIRT, MUD, WATER, JUMP, WHOOPS, SAND, FeatureType } from '../content/types';
 
 export interface Track {
   def: TrackDef;
@@ -16,6 +16,8 @@ export interface Track {
   sampleRel: Float32Array;
   /** 1 on the few samples just past a jump lip (drawn as a drop shadow). */
   sampleShade: Uint8Array;
+  /** Launch strength of the jump a sample belongs to. */
+  samplePow: Float32Array;
   /** Signed distance to the track edge per pixel: negative is drivable. */
   sd: Float32Array;
   near: Uint16Array;
@@ -23,9 +25,9 @@ export interface Track {
 }
 
 const SPACING = 2;
-const FAR = 8;
-const SURF: Record<FeatureType, number> = { mud: MUD, water: WATER, jump: JUMP, whoops: WHOOPS };
-const DEF_LEN: Record<FeatureType, number> = { mud: 44, water: 34, jump: 12, whoops: 64 };
+const FAR = 10;
+const SURF: Record<FeatureType, number> = { mud: MUD, water: WATER, jump: JUMP, whoops: WHOOPS, sand: SAND };
+const DEF_LEN: Record<FeatureType, number> = { mud: 44, water: 34, jump: 12, whoops: 64, sand: 90 };
 
 function cr(a: number, b: number, c: number, d: number, t: number): number {
   const t2 = t * t;
@@ -72,8 +74,8 @@ function resample(points: [number, number][]): { xs: number[]; ys: number[] } {
 }
 
 export function buildTrack(def: TrackDef): Track {
-  const w = def.long ? 960 : 480;
-  const h = def.long ? 540 : 270;
+  const w = def.size?.[0] ?? 480;
+  const h = def.size?.[1] ?? 270;
   const { xs, ys } = resample(def.points);
   const n = xs.length;
   const sx = Float32Array.from(xs);
@@ -91,6 +93,7 @@ export function buildTrack(def: TrackDef): Track {
   const sampleSurf = new Uint8Array(n);
   const sampleRel = new Float32Array(n);
   const sampleShade = new Uint8Array(n);
+  const samplePow = new Float32Array(n).fill(1);
   for (const f of def.features) {
     const i0 = Math.round(f.at * n);
     const count = Math.max(2, Math.round((f.len ?? DEF_LEN[f.type]) / SPACING));
@@ -98,6 +101,7 @@ export function buildTrack(def: TrackDef): Track {
       const i = (i0 + k) % n;
       sampleSurf[i] = SURF[f.type];
       sampleRel[i] = k / (count - 1);
+      samplePow[i] = f.power ?? 1;
     }
     if (f.type === 'jump') for (let k = 0; k < 3; k++) sampleShade[(i0 + count + k) % n] = 1;
   }
@@ -125,7 +129,7 @@ export function buildTrack(def: TrackDef): Track {
   const surf = new Uint8Array(w * h);
   for (let p = 0; p < surf.length; p++) surf[p] = sd[p] < 0 ? sampleSurf[near[p]] : DIRT;
 
-  return { def, w, h, n, half, sx, sy, tx, ty, sampleSurf, sampleRel, sampleShade, sd, near, surf };
+  return { def, w, h, n, half, sx, sy, tx, ty, sampleSurf, sampleRel, sampleShade, samplePow, sd, near, surf };
 }
 
 /** Bilinear signed distance to the track edge. */
@@ -146,6 +150,13 @@ export function surfAt(t: Track, x: number, y: number): number {
   const xi = Math.min(t.w - 1, Math.max(0, x | 0));
   const yi = Math.min(t.h - 1, Math.max(0, y | 0));
   return t.surf[yi * t.w + xi];
+}
+
+/** The centreline sample closest to a point. */
+export function nearAt(t: Track, x: number, y: number): number {
+  const xi = Math.min(t.w - 1, Math.max(0, x | 0));
+  const yi = Math.min(t.h - 1, Math.max(0, y | 0));
+  return t.near[yi * t.w + xi];
 }
 
 /** Signed sample-index difference a-b, wrapped to (-n/2, n/2]. */

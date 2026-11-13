@@ -1,12 +1,12 @@
-import { GATES, TRUCK_R } from '../core/config';
+import { GATES, VIEW_W } from '../core/config';
 import { mulberry32, Rand } from '../core/rng';
-import { JUMP } from '../content/tracks';
-import { CASH_PICKUP, Stats } from '../content/trucks';
+import { CASH_PICKUP } from '../content/drivers';
+import { JUMP, Stats } from '../content/types';
 import { Track, wrapIdx } from '../track/build';
 import { Particles } from './particles';
 import { Controls, NO_INPUT, stepTruck, Truck } from './truck';
 
-export interface Entry { slot: number; human: boolean; name: string; stats: Stats; nitro: number }
+export interface Entry { slot: number; human: boolean; name: string; vehicle: string; radius: number; stats: Stats; nitro: number }
 export interface Pickup { x: number; y: number; type: 'nitro' | 'cash'; t: number }
 export interface RaceEvent { type: 'count' | 'go' | 'nitro' | 'land' | 'bump' | 'pickup' | 'lap' | 'finish'; slot: number }
 
@@ -40,13 +40,13 @@ export class Race {
       const i = n - 5 - 7 * (g >> 1);
       const lat = (g % 2 ? 1 : -1) * 7;
       this.trucks.push({
-        slot: e.slot, human: e.human, name: e.name, stats: e.stats,
+        slot: e.slot, human: e.human, name: e.name, vehicle: e.vehicle, radius: e.radius, stats: e.stats,
         x: track.sx[i] - track.ty[i] * lat, y: track.sy[i] + track.tx[i] * lat, z: 0, vz: 0,
         vx: 0, vy: 0, h: Math.atan2(track.ty[i], track.tx[i]),
         idx: i, lap: 0, cp: 0, passed: 0, score: 0, pos: g,
         finished: false, finishTime: 0, place: -1,
         nitro: e.nitro, nitroT: 0, nitroHeld: false, cash: 0,
-        lastSurf: 0, whoop: 0, bigAir: false, slip: 0,
+        lastSurf: 0, lastPow: 1, whoop: 0, bigAir: false, slip: 0,
         ai: { lane: lat, laneT: 1 + this.rand() * 2, stuck: 0, rev: 0 },
       });
     });
@@ -155,30 +155,34 @@ export class Race {
 
   private collide(): void {
     const ts = this.trucks;
-    const min = TRUCK_R * 2;
     for (let a = 0; a < ts.length; a++) {
       for (let b = a + 1; b < ts.length; b++) {
         const p = ts[a];
         const q = ts[b];
         if (Math.abs(p.z - q.z) > 4) continue;
+        const min = p.radius + q.radius;
         const dx = q.x - p.x;
         const dy = q.y - p.y;
         const d = Math.hypot(dx, dy);
         if (d >= min || d < 1e-4) continue;
         const nx = dx / d;
         const ny = dy / d;
-        const push = (min - d) / 2;
-        p.x -= nx * push;
-        p.y -= ny * push;
-        q.x += nx * push;
-        q.y += ny * push;
+        // The heavier vehicle gives way less.
+        const total = p.stats.mass + q.stats.mass;
+        const wp = q.stats.mass / total;
+        const wq = p.stats.mass / total;
+        const push = min - d;
+        p.x -= nx * push * wp;
+        p.y -= ny * push * wp;
+        q.x += nx * push * wq;
+        q.y += ny * push * wq;
         const rel = (q.vx - p.vx) * nx + (q.vy - p.vy) * ny;
         if (rel < 0) {
-          const j = rel * 0.8;
-          p.vx += nx * j;
-          p.vy += ny * j;
-          q.vx -= nx * j;
-          q.vy -= ny * j;
+          const j = rel * 1.6;
+          p.vx += nx * j * wp;
+          p.vy += ny * j * wp;
+          q.vx -= nx * j * wq;
+          q.vy -= ny * j * wq;
           if (rel < -30) this.events.push({ type: 'bump', slot: p.slot });
         }
       }
@@ -190,7 +194,7 @@ export class Race {
     this.spawnT -= dt;
     if (this.spawnT <= 0 && this.phase === 'racing') {
       this.spawnT = 4 + this.rand() * 3;
-      const cap = tr.def.long ? 5 : 3;
+      const cap = Math.round(3 * tr.w / VIEW_W);
       if (this.pickups.length < cap) {
         const i = (this.rand() * tr.n) | 0;
         if (tr.sampleSurf[i] !== JUMP) {

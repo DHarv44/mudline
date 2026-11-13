@@ -1,26 +1,6 @@
-export const DIRT = 0;
-export const MUD = 1;
-export const WATER = 2;
-export const JUMP = 3;
-export const WHOOPS = 4;
+import type { TrackDef } from '../../content/types';
 
-export type FeatureType = 'mud' | 'water' | 'jump' | 'whoops';
-
-export interface TrackDef {
-  id: string;
-  name: string;
-  /** Long tracks use a 960x540 world with a moving camera. */
-  long?: boolean;
-  theme: string;
-  laps: number;
-  /** Half the track width in world pixels. */
-  half: number;
-  /** Closed loop of control points; the start line sits on the first one. */
-  points: [number, number][];
-  /** `at` is the fraction of a lap from the start line; `len` is in pixels. */
-  features: { type: FeatureType; at: number; len?: number }[];
-}
-
+/** Eight single-screen stadium circuits and four long courses. */
 export const TRACKS: TrackDef[] = [
   {
     id: 'rookie', name: 'ROOKIE BOWL', theme: 'stadium', laps: 4, half: 15,
@@ -38,7 +18,7 @@ export const TRACKS: TrackDef[] = [
     features: [{ type: 'whoops', at: 0.27, len: 44 }, { type: 'mud', at: 0.44, len: 36 }, { type: 'water', at: 0.78 }],
   },
   {
-    id: 'dustdevil', name: 'DUST DEVIL 500', long: true, theme: 'clay', laps: 2, half: 17,
+    id: 'dustdevil', name: 'DUST DEVIL 500', size: [960, 540], theme: 'clay', laps: 2, half: 17,
     points: [[300, 70], [480, 120], [660, 70], [860, 100], [905, 200], [840, 290], [680, 270], [600, 350], [680, 430], [840, 400], [905, 450], [840, 500], [600, 500], [450, 440], [380, 330], [450, 230], [330, 190], [220, 260], [250, 380], [180, 470], [90, 440], [65, 300], [70, 180], [110, 100]],
     features: [
       { type: 'jump', at: 0.07 }, { type: 'whoops', at: 0.2 }, { type: 'mud', at: 0.33 }, { type: 'water', at: 0.47 },
@@ -56,7 +36,7 @@ export const TRACKS: TrackDef[] = [
     features: [{ type: 'jump', at: 0.17 }, { type: 'mud', at: 0.47 }, { type: 'whoops', at: 0.82, len: 50 }],
   },
   {
-    id: 'canyon', name: 'CANYON CROSS', long: true, theme: 'stadium', laps: 3, half: 17,
+    id: 'canyon', name: 'CANYON CROSS', size: [960, 540], theme: 'stadium', laps: 3, half: 17,
     points: [[300, 80], [430, 170], [480, 270], [530, 370], [660, 460], [840, 440], [900, 300], [850, 150], [700, 80], [560, 150], [480, 270], [400, 390], [280, 470], [120, 440], [60, 280], [120, 120]],
     features: [
       { type: 'jump', at: 0.05 }, { type: 'mud', at: 0.24 }, { type: 'whoops', at: 0.36 }, { type: 'jump', at: 0.5 },
@@ -74,7 +54,7 @@ export const TRACKS: TrackDef[] = [
     features: [{ type: 'jump', at: 0.08 }, { type: 'mud', at: 0.34 }, { type: 'water', at: 0.5, len: 28 }, { type: 'whoops', at: 0.74, len: 44 }],
   },
   {
-    id: 'spine', name: "SERPENT'S SPINE", long: true, theme: 'dusk', laps: 2, half: 17,
+    id: 'spine', name: "SERPENT'S SPINE", size: [960, 540], theme: 'dusk', laps: 2, half: 17,
     points: [[480, 95], [680, 80], [840, 85], [900, 145], [840, 205], [600, 190], [400, 215], [230, 200], [175, 255], [230, 310], [400, 300], [600, 325], [840, 310], [900, 365], [840, 425], [660, 445], [480, 440], [300, 450], [140, 430], [75, 370], [70, 250], [80, 130], [140, 85]],
     features: [
       { type: 'jump', at: 0.05 }, { type: 'whoops', at: 0.19 }, { type: 'mud', at: 0.3 }, { type: 'jump', at: 0.42 },
@@ -87,7 +67,7 @@ export const TRACKS: TrackDef[] = [
     features: [{ type: 'mud', at: 0.12, len: 36 }, { type: 'jump', at: 0.33 }, { type: 'water', at: 0.55 }, { type: 'jump', at: 0.83 }],
   },
   {
-    id: 'coil', name: 'THUNDER COIL', long: true, theme: 'stadium', laps: 2, half: 17,
+    id: 'coil', name: 'THUNDER COIL', size: [960, 540], theme: 'stadium', laps: 2, half: 17,
     points: [[480, 60], [800, 110], [885, 270], [800, 430], [480, 485], [290, 450], [200, 330], [290, 190], [480, 165], [690, 200], [740, 270], [690, 345], [480, 375], [330, 370], [170, 420], [90, 360], [80, 250], [160, 110]],
     features: [
       { type: 'jump', at: 0.06 }, { type: 'whoops', at: 0.2 }, { type: 'mud', at: 0.31 }, { type: 'water', at: 0.52 },
@@ -96,6 +76,5 @@ export const TRACKS: TrackDef[] = [
   },
 ];
 
-export function trackById(id: string): TrackDef {
-  return TRACKS.find((t) => t.id === id) ?? TRACKS[0];
-}
+export const STADIUM_IDS = TRACKS.filter((t) => !t.size).map((t) => t.id);
+export const LONG_IDS = TRACKS.filter((t) => t.size).map((t) => t.id);

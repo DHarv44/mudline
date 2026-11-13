@@ -1,6 +1,6 @@
 import { hash2 } from '../core/rng';
 import { CROWD, RGB, THEMES } from '../content/themes';
-import { JUMP, MUD, WATER, WHOOPS } from '../content/tracks';
+import { JUMP, MUD, SAND, WATER, WHOOPS } from '../content/types';
 import type { Track } from '../track/build';
 
 function mix(a: RGB, b: RGB, f: number): RGB {
@@ -14,7 +14,7 @@ function scale(a: RGB, f: number): RGB {
 const BORDER = 10;
 
 /** Paints the whole track as pixel art, one pixel at a time, from the distance field. */
-export function paintTrack(t: Track): HTMLCanvasElement {
+export function paintRetro(t: Track): HTMLCanvasElement {
   const th = THEMES[t.def.theme] ?? THEMES.stadium;
   const cv = document.createElement('canvas');
   cv.width = t.w;
@@ -40,6 +40,9 @@ export function paintTrack(t: Track): HTMLCanvasElement {
         } else if (s === WATER) {
           c = r < 0.25 ? th.water[0] : th.water[1];
           if (((x + (y >> 1) * 3) % 9 === 0 && y % 3 === 0) || r > 0.975) c = th.water[2];
+        } else if (s === SAND) {
+          c = r < 0.2 ? [226, 204, 150] : [240, 222, 170];
+          if ((y + (x >> 2)) % 5 === 0) c = [214, 190, 138];
         } else if (s === JUMP) {
           c = mix(th.dirt[1], scale(th.dirt[0], 1.18), rel);
           if (rel > 0.8) c = scale(th.dirt[0], 1.28);

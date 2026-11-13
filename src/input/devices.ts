@@ -116,6 +116,15 @@ export class InputHub {
     return m;
   }
 
+  /** True while any controller button is held. */
+  padPressed(): boolean {
+    for (let i = 4; i < DEVICES; i++) {
+      const s = this.cur[i];
+      if (s.gas || s.brake || s.nitro || s.ok || s.back || s.start) return true;
+    }
+    return false;
+  }
+
   hit(dev: number, b: Button): boolean {
     return this.cur[dev][b] && !this.prev[dev][b];
   }

@@ -1,8 +1,9 @@
 import '@fontsource/press-start-2p';
 import { Sfx } from './audio/sfx';
 import { SIM_DT } from './core/config';
-import { TRACKS } from './content/tracks';
-import { statsFor } from './content/trucks';
+import { ALL_TRACKS } from './content/registry';
+import { eventsScene } from './scenes/events';
+import { garageScene } from './scenes/garage';
 import { Game, Scene, SceneName, TrackCache } from './game/game';
 import { Session } from './game/session';
 import { loadSettings } from './game/settings';
@@ -29,7 +30,9 @@ import { validateTrack } from './track/validate';
 
 const SCENES: Record<SceneName, (g: Game, arg: unknown) => Scene> = {
   title: (g) => titleScene(g),
-  lobby: (g, arg) => lobbyScene(g, arg as 'champ' | 'quick'),
+  events: (g, arg) => eventsScene(g, arg as string),
+  lobby: (g, arg) => lobbyScene(g, arg as { series: string; mode: 'champ' | 'quick' }),
+  garage: (g) => garageScene(g),
   tracks: (g) => trackSelectScene(g),
   race: (g) => raceScene(g),
   results: (g) => resultsScene(g),
@@ -75,6 +78,8 @@ async function boot(): Promise<void> {
 
   const frame = (dt: number, draw: boolean) => {
     input.poll();
+    // Browsers keep sound off until the player does something; a controller press counts as well as a key.
+    if (input.padPressed()) sfx.unlock();
     scene.update(dt);
     screen.endInput();
     if (draw) {
@@ -102,14 +107,19 @@ async function boot(): Promise<void> {
       for (let t = 0; t < sec; t += 1 / 60) frame(1 / 60, false);
       if (draw) frame(0, true);
     },
-    validate: () => TRACKS.map((d) => validateTrack(buildTrack(d))),
-    sim(id: string, level = 0, maxSec = 400) {
-      const track = game.tracks.get(id).track;
-      const up = { tires: level, shocks: level, accel: level, speed: level };
-      const entries = [0, 1, 2, 3].map((slot) => ({ slot, human: false, name: `C${slot}`, stats: statsFor(up, 0.95), nitro: 3 }));
-      const race = new Race(track, entries, track.def.laps, 7);
+    validate: () => ALL_TRACKS.map((d) => validateTrack(buildTrack(d))),
+    /** Runs one round of a series with computer drivers only and reports the finishing times. */
+    sim(seriesId: string, round = 0, maxSec = 500) {
+      const ses = new Session();
+      ses.setup([null, null, null, null], 'champ', seriesId);
+      ses.round = round;
+      const track = game.tracks.track(ses.trackId);
+      const race = new Race(track, ses.entries(), track.def.laps, 7);
       while (race.phase !== 'done' && race.time < maxSec) race.step(SIM_DT, (t) => aiControls(t, race, SIM_DT, t.finished ? 0.5 : 1));
-      return { id, done: race.phase === 'done', times: race.trucks.map((t) => (t.finished ? +t.finishTime.toFixed(1) : `lap ${t.lap}`)) };
+      return {
+        track: track.def.id, done: race.phase === 'done',
+        times: race.trucks.map((t) => `${t.vehicle}:${t.finished ? t.finishTime.toFixed(0) : `lap${t.lap}`}`),
+      };
     },
   };
 }

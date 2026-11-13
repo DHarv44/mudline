@@ -1,3 +1,4 @@
+import { seriesById } from '../content/registry';
 import { REMOTE } from '../game/session';
 import type { Game } from '../game/game';
 import type { ClientMsg, DriverInfo, RaceMsg, RoomMsg, ServerMsg, SnapMsg } from './protocol';
@@ -127,14 +128,15 @@ export class NetClient {
   private sync(drivers: DriverInfo[]): void {
     const you = this.room?.you;
     const ses = this.g().session;
+    if (this.room) ses.series = seriesById(this.room.series);
     ses.drivers = drivers.map((d) => ({
-      slot: d.slot, name: d.name, money: d.money, points: d.points, up: d.up, nitro: d.nitro,
+      slot: d.slot, name: d.name, vehicle: d.vehicle, money: d.money, points: d.points, up: d.up, nitro: d.nitro,
       device: d.client === null ? null : d.client === you ? 0 : REMOTE,
     }));
     this.ready = drivers.find((d) => d.client === you)?.ready ?? false;
   }
 
-  private show(name: 'netLobby' | 'netRace' | 'results' | 'shop' | 'champion', arg?: RaceMsg): void {
+  private show(name: 'netLobby' | 'netRace' | 'results' | 'shop' | 'garage' | 'champion', arg?: RaceMsg): void {
     if (this.screen === name && name !== 'netRace') return;
     this.screen = name;
     this.g().go(name, arg);
@@ -166,7 +168,7 @@ export class NetClient {
         break;
       case 'shop':
         this.sync(m.drivers);
-        this.show('shop');
+        this.show(ses.shopScene);
         break;
       case 'champion':
         this.sync(m.drivers);

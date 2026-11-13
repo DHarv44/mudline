@@ -1,6 +1,5 @@
 import { SIM_DT, SLOTS } from '../src/core/config';
-import { TRACKS, trackById } from '../src/content/tracks';
-import type { UpgradeId } from '../src/content/trucks';
+import { ALL_SERIES, hasSeries, seriesById, trackById } from '../src/content/registry';
 import { Session } from '../src/game/session';
 import type { ClientMsg, DriverInfo, Mode, RaceMsg, RoomState, ServerMsg } from '../src/net/protocol';
 import { aiControls } from '../src/sim/ai';
@@ -16,7 +15,6 @@ export interface Conn {
   send(m: ServerMsg): void;
 }
 
-const ITEMS = ['tires', 'shocks', 'accel', 'speed', 'nitro'];
 const built = new Map<string, Track>();
 
 function trackFor(id: string): Track {
@@ -52,8 +50,21 @@ export class Room {
   private ready: boolean[] = new Array(SLOTS).fill(false);
   private acc = 0;
   private tick = 0;
+  /** What the host has set the room to play next. */
+  private cfgSeries = ALL_SERIES[0].id;
+  private cfgMode: Mode = 'champ';
+  private cfgTrack = 0;
+  /** Each seat's chosen vehicle. */
+  private vehicles: string[] = [];
+
+  /** Any seat whose vehicle the chosen series does not allow gets one that it does. */
+  private fixVehicles(): void {
+    const allowed = seriesById(this.cfgSeries).vehicles;
+    for (let i = 0; i < SLOTS; i++) if (!allowed.includes(this.vehicles[i])) this.vehicles[i] = allowed[i % allowed.length];
+  }
 
   constructor(public code: string) {
+    this.fixVehicles();
     for (let i = 0; i < SLOTS; i++) {
       this.inputs.push({ steer: 0, gas: 0, brake: 0, nitro: false });
       this.last.push({ steer: 0, gas: 0, brake: 0, nitro: false });
@@ -112,17 +123,31 @@ export class Room {
       this.next(c);
       return;
     }
+    if (m.t === 'config') {
+      // The host chooses what the room plays.
+      if (c.id !== this.host || this.state !== 'lobby' || !hasSeries(String(m.series))) return;
+      this.cfgSeries = String(m.series);
+      this.cfgMode = m.mode === 'champ' ? 'champ' : 'quick';
+      const n = seriesById(this.cfgSeries).tracks.length;
+      this.cfgTrack = Math.max(0, Math.min(n - 1, Math.floor(Number(m.track) || 0)));
+      this.fixVehicles();
+      this.sendRoom();
+      return;
+    }
     if (m.t === 'start') {
       if (c.id !== this.host || this.state !== 'lobby' || this.seats.every((s) => s === null)) return;
-      const mode: Mode = m.mode === 'champ' ? 'champ' : 'quick';
-      this.session.setup(this.seats.map((s) => (s === null ? null : 0)), mode);
-      if (mode === 'quick') this.session.round = Math.max(0, Math.min(TRACKS.length - 1, Math.floor(Number(m.track) || 0)));
+      this.session.setup(this.seats.map((s) => (s === null ? null : 0)), this.cfgMode, this.cfgSeries, this.vehicles);
+      if (this.cfgMode === 'quick') this.session.round = this.cfgTrack;
       this.beginRace();
       return;
     }
     const slot = this.seats.indexOf(c.id);
     if (slot < 0) return;
-    if (m.t === 'in') {
+    if (m.t === 'vehicle') {
+      if (this.state !== 'lobby' || !seriesById(this.cfgSeries).vehicles.includes(String(m.id))) return;
+      this.vehicles[slot] = String(m.id);
+      this.sendRoom();
+    } else if (m.t === 'in') {
       const s = m.s;
       if (!Array.isArray(s) || s.length < 4) return;
       const inp = this.inputs[slot];
@@ -131,8 +156,8 @@ export class Room {
       inp.brake = s[2] ? 1 : 0;
       inp.nitro = !!s[3];
     } else if (m.t === 'buy') {
-      if (this.state !== 'shop' || this.ready[slot] || !ITEMS.includes(m.item)) return;
-      this.session.buy(this.session.drivers[slot], m.item as UpgradeId | 'nitro');
+      if (this.state !== 'shop' || this.ready[slot]) return;
+      this.session.buy(this.session.drivers[slot], String(m.item));
       this.all({ t: 'shop', drivers: this.drivers() });
     } else if (m.t === 'ready') {
       if (this.state !== 'shop') return;
@@ -259,7 +284,7 @@ export class Room {
 
   private drivers(): DriverInfo[] {
     return this.session.drivers.map((d) => ({
-      slot: d.slot, client: this.seats[d.slot], name: d.name, money: d.money, points: d.points,
+      slot: d.slot, client: this.seats[d.slot], name: d.name, vehicle: d.vehicle, money: d.money, points: d.points,
       up: d.up, nitro: d.nitro, ready: this.ready[d.slot],
     }));
   }
@@ -279,7 +304,11 @@ export class Room {
 
   private sendRoom(): void {
     for (const c of this.conns.values()) {
-      c.send({ t: 'room', code: this.code, you: c.id, host: this.host, state: this.state, seats: this.seats });
+      c.send({
+        t: 'room', code: this.code, you: c.id, host: this.host, state: this.state, seats: this.seats,
+        series: this.state === 'lobby' ? this.cfgSeries : this.session.series.id,
+        mode: this.cfgMode, track: this.cfgTrack, vehicles: this.vehicles,
+      });
     }
   }
 

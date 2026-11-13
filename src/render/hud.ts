@@ -1,5 +1,5 @@
-import { VIEW_W } from '../core/config';
-import { TRUCK_COLORS } from '../content/trucks';
+import { VIEW_H, VIEW_W } from '../core/config';
+import { TRUCK_COLORS } from '../content/drivers';
 import type { Race } from '../sim/race';
 import type { Screen } from './screen';
 
@@ -19,6 +19,8 @@ export function drawHud(s: Screen, race: Race): void {
     s.text(`N${t.nitro}`, x + w - 4, 15, '#58c8ff', { align: 'right', shadow: false });
   });
 
+  if (race.track.w > VIEW_W) drawMinimap(s, race);
+
   if (race.phase === 'countdown' || (race.phase === 'racing' && race.time < 0.9)) {
     const go = race.phase === 'racing';
     const lit = race.lightsLit;
@@ -30,5 +32,30 @@ export function drawHud(s: Screen, race: Race): void {
       s.rect(cx - 27 + i * 20, 40, 14, 14, on ? (go ? '#40e060' : '#f03c30') : '#48303a');
       if (on) s.rect(cx - 25 + i * 20, 42, 4, 4, go ? '#c8ffd0' : '#ffb0a0');
     }
+  }
+}
+
+/** On tracks bigger than the screen, a small map of the whole course with everyone on it. */
+function drawMinimap(s: Screen, race: Race): void {
+  const tr = race.track;
+  const w = 78;
+  const h = (w * tr.h) / tr.w;
+  const x0 = VIEW_W - w - 6;
+  const y0 = VIEW_H - h - 6;
+  const k = w / tr.w;
+  const c = s.ctx;
+  s.rect(x0 - 2, y0 - 2, w + 4, h + 4, 'rgba(8,8,14,0.6)');
+  c.strokeStyle = 'rgba(232,220,200,0.85)';
+  c.lineWidth = 1.6;
+  c.beginPath();
+  for (let i = 0; i <= tr.n; i += 6) {
+    const j = i % tr.n;
+    if (i === 0) c.moveTo(x0 + tr.sx[j] * k, y0 + tr.sy[j] * k);
+    else c.lineTo(x0 + tr.sx[j] * k, y0 + tr.sy[j] * k);
+  }
+  c.closePath();
+  c.stroke();
+  for (const t of race.trucks) {
+    s.rect(x0 + t.x * k - 1.5, y0 + t.y * k - 1.5, 3, 3, TRUCK_COLORS[t.slot].css);
   }
 }

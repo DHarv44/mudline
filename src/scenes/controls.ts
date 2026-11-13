@@ -1,4 +1,5 @@
 import { VIEW_W } from '../core/config';
+import { backdrop } from '../ui/kit';
 import type { Game, Scene } from '../game/game';
 import { saveSettings } from '../game/settings';
 import { ACTIONS, defaultBinds, KEYBOARD_NAMES, keyLabel } from '../input/bindings';
@@ -48,8 +49,7 @@ export function controlsScene(g: Game): Scene {
     },
     draw() {
       const s = g.screen;
-      s.rect(0, 0, VIEW_W, 270, '#14121c');
-      s.text('CONTROLS', VIEW_W / 2, 12, '#ffb020', { align: 'center', size: 16 });
+      backdrop(s, 'CONTROLS');
       HEAD.forEach((h, c) => s.text(h, 122 + c * 72, 42, '#58c8ff', { align: 'center' }));
       for (let r = 0; r < 4; r++) {
         const y = 60 + r * 20;

@@ -2,6 +2,7 @@ import { VIEW_W } from '../core/config';
 import type { Game, Scene } from '../game/game';
 import { NetClient } from '../net/client';
 import { CODE_LEN, CODE_LETTERS } from '../net/protocol';
+import { backdrop } from '../ui/kit';
 import { ListMenu } from '../ui/menu';
 
 /** Create an online room, or join one by code. Opening an invite link lands here with the code filled in. */
@@ -73,8 +74,7 @@ export function onlineScene(g: Game, invite?: string): Scene {
     draw() {
       const s = g.screen;
       const cx = VIEW_W / 2;
-      s.rect(0, 0, VIEW_W, 270, '#14121c');
-      s.text('ONLINE', cx, 20, '#ffb020', { align: 'center', size: 16 });
+      backdrop(s, 'ONLINE');
       if (net.reconnecting) {
         s.text('CONNECTION LOST', cx, 100, '#ff8048', { align: 'center' });
         if (s.blink()) s.text('RECONNECTING', cx, 124, '#d8d8e0', { align: 'center' });

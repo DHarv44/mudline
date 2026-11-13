@@ -1,4 +1,4 @@
-import type { Upgrades } from '../content/trucks';
+import type { Upgrades } from '../content/types';
 import type { ResultRow } from '../game/session';
 import type { Entry } from '../sim/race';
 
@@ -10,6 +10,7 @@ export interface DriverInfo {
   /** Connection id of the player driving, or null for a computer driver (or a player who is away). */
   client: number | null;
   name: string;
+  vehicle: string;
   money: number;
   points: number;
   up: Upgrades;
@@ -18,7 +19,13 @@ export interface DriverInfo {
 }
 
 /** seats: the connection id in each truck slot, or null when the computer drives it. A player in no seat is watching. */
-export interface RoomMsg { t: 'room'; code: string; you: number; host: number; state: RoomState; seats: (number | null)[] }
+export interface RoomMsg {
+  t: 'room'; code: string; you: number; host: number; state: RoomState; seats: (number | null)[];
+  /** What the host has chosen: the series, a championship or a single race, and which track for a single race. */
+  series: string; mode: Mode; track: number;
+  /** The vehicle chosen for each truck slot. */
+  vehicles: string[];
+}
 /** entries are the trucks exactly as the server built them at the start, so a late joiner's copy matches. */
 export interface RaceMsg { t: 'race'; mode: Mode; round: number; trackId: string; laps: number; seed: number; entries: Entry[]; drivers: DriverInfo[] }
 /**
@@ -39,7 +46,9 @@ export type ServerMsg = RoomMsg | RaceMsg | SnapMsg | ResultsMsg | ShopMsg | Cha
 export type ClientMsg =
   | { t: 'create'; pid: string }
   | { t: 'join'; code: string; pid: string }
-  | { t: 'start'; mode: Mode; track: number }
+  | { t: 'config'; series: string; mode: Mode; track: number }
+  | { t: 'vehicle'; id: string }
+  | { t: 'start' }
   /** [steer, gas, brake, nitro] */
   | { t: 'in'; s: number[] }
   | { t: 'buy'; item: string }

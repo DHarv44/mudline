@@ -1,7 +1,6 @@
-import { TRACKS } from '../content/tracks';
-import {
-  CPU_NAMES, MAX_LEVEL, NITRO_PRICE, POINTS, PRIZES, START_MONEY, START_NITRO, statsFor, UpgradeId, Upgrades, upgradePrice, UPGRADES,
-} from '../content/trucks';
+import { CPU_NAMES, MAX_NITRO, POINTS } from '../content/drivers';
+import { catalogById, freshUpgrades, modeById, seriesById, statsFor, vehicleById } from '../content/registry';
+import type { Catalog, SeriesDef, Upgrades } from '../content/types';
 import type { Entry, Race } from '../sim/race';
 
 /** Device value for a human who is playing from another machine. */
@@ -12,6 +11,7 @@ export interface Driver {
   /** Input device for a human, null for a computer driver. */
   device: number | null;
   name: string;
+  vehicle: string;
   money: number;
   points: number;
   up: Upgrades;
@@ -20,25 +20,51 @@ export interface Driver {
 
 export interface ResultRow { slot: number; name: string; place: number; prize: number; cash: number; time: number }
 
+/** One run through a series: who is driving what, their money and parts, and where the series has got to. */
 export class Session {
   drivers: Driver[] = [];
   mode: 'champ' | 'quick' = 'quick';
   round = 0;
-  order: string[] = TRACKS.map((t) => t.id);
+  series: SeriesDef = seriesById('');
   results: ResultRow[] = [];
 
-  setup(devices: (number | null)[], mode: 'champ' | 'quick'): void {
+  get order(): string[] {
+    return this.series.tracks;
+  }
+
+  get catalog(): Catalog {
+    return catalogById(this.series.catalog);
+  }
+
+  /** How this series is drawn, and which upgrade screen it uses; both come from its mode. */
+  get style(): 'retro' | 'modern' {
+    return modeById(this.series.mode).style;
+  }
+
+  get shopScene(): 'shop' | 'garage' {
+    return modeById(this.series.mode).shop;
+  }
+
+  /** `vehicles` holds each seat's choice; anything missing or not allowed in the series gets one that is. */
+  setup(devices: (number | null)[], mode: 'champ' | 'quick', seriesId: string, vehicles: (string | undefined)[] = []): void {
+    this.series = seriesById(seriesId);
     this.mode = mode;
     this.round = 0;
+    const allowed = this.series.vehicles;
     let human = 0;
-    const lvl = mode === 'quick' ? 2 : 0;
-    this.drivers = devices.map((device, slot) => ({
-      slot, device,
-      name: device === null ? CPU_NAMES[slot] : `P${++human}`,
-      money: START_MONEY, points: 0,
-      up: { tires: lvl, shocks: lvl, accel: lvl, speed: lvl },
-      nitro: mode === 'quick' ? 5 : START_NITRO,
-    }));
+    // A single race is run on mid-level parts so it is not a crawl.
+    const up = freshUpgrades(this.catalog, mode === 'quick' ? 2 : 0);
+    this.drivers = devices.map((device, slot) => {
+      const pick = vehicles[slot];
+      return {
+        slot, device,
+        name: device === null ? CPU_NAMES[slot] : `P${++human}`,
+        vehicle: pick && allowed.includes(pick) ? pick : allowed[slot % allowed.length],
+        money: this.series.startMoney, points: 0,
+        up: { ...up },
+        nitro: mode === 'quick' ? 5 : this.series.startNitro,
+      };
+    });
   }
 
   get humans(): Driver[] {
@@ -59,21 +85,22 @@ export class Session {
   }
 
   entries(): Entry[] {
-    return this.drivers.map((d) => ({
-      slot: d.slot,
-      human: d.device !== null,
-      name: d.name,
+    return this.drivers.map((d) => {
+      const v = vehicleById(d.vehicle);
       // Computer drivers hold a little back early in a championship.
-      stats: statsFor(d.up, d.device !== null ? 1 : Math.min(1, 0.9 + d.slot * 0.015 + this.round * 0.008)),
-      nitro: d.nitro,
-    }));
+      const skill = d.device !== null ? 1 : Math.min(1, 0.9 + d.slot * 0.015 + this.round * 0.008);
+      return {
+        slot: d.slot, human: d.device !== null, name: d.name, vehicle: v.id, radius: v.radius,
+        stats: statsFor(v, this.catalog, d.up, skill), nitro: d.nitro,
+      };
+    });
   }
 
   apply(race: Race): void {
     this.results = [];
     for (const t of race.trucks) {
       const d = this.drivers[t.slot];
-      const prize = this.mode === 'champ' ? PRIZES[t.place] ?? 0 : 0;
+      const prize = this.mode === 'champ' ? this.series.prizes[t.place] ?? 0 : 0;
       d.money += prize + t.cash;
       d.points += POINTS[t.place] ?? 0;
       d.nitro = this.mode === 'quick' ? 5 : t.nitro;
@@ -82,26 +109,35 @@ export class Session {
     this.results.sort((a, b) => a.place - b.place);
   }
 
-  buy(d: Driver, id: UpgradeId | 'nitro'): boolean {
+  /** Price of the next tier in a category, or -1 when it is maxed. */
+  price(d: Driver, categoryId: string): number {
+    const c = this.catalog.categories.find((k) => k.id === categoryId);
+    const next = c?.tiers[(d.up[categoryId] ?? 0) + 1];
+    return next ? next.price : -1;
+  }
+
+  /** Buys the next tier of a part category, or one nitro bottle for the id 'nitro'. */
+  buy(d: Driver, id: string): boolean {
     if (id === 'nitro') {
-      if (d.money < NITRO_PRICE || d.nitro >= 9) return false;
-      d.money -= NITRO_PRICE;
+      if (d.money < this.catalog.nitroPrice || d.nitro >= MAX_NITRO) return false;
+      d.money -= this.catalog.nitroPrice;
       d.nitro++;
       return true;
     }
-    const price = upgradePrice(d.up[id]);
-    if (d.up[id] >= MAX_LEVEL || d.money < price) return false;
+    const price = this.price(d, id);
+    if (price < 0 || d.money < price) return false;
     d.money -= price;
-    d.up[id]++;
+    d.up[id] = (d.up[id] ?? 0) + 1;
     return true;
   }
 
   /** Computer drivers spend their winnings the same way players do. */
   aiShop(rand: () => number): void {
+    const cats = this.catalog.categories;
     for (const d of this.drivers) {
       if (d.device !== null) continue;
       for (let tries = 0; tries < 12; tries++) {
-        const pick = UPGRADES[(rand() * UPGRADES.length) | 0].id;
+        const pick = cats[(rand() * cats.length) | 0].id;
         if (!this.buy(d, pick) && d.nitro < 3) this.buy(d, 'nitro');
       }
     }

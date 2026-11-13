@@ -1,17 +1,20 @@
 import { VIEW_W } from '../core/config';
 import { mulberry32 } from '../core/rng';
-import { MAX_LEVEL, NITRO_PRICE, TRUCK_COLORS, UpgradeId, upgradePrice, UPGRADES } from '../content/trucks';
+import { TRUCK_COLORS } from '../content/drivers';
 import type { Game, Scene } from '../game/game';
-import { drawTruck } from '../render/truckSprites';
+import { drawVehicle } from '../render/sprites';
+import { backdrop, panel, UI } from '../ui/kit';
 
-type Item = UpgradeId | 'nitro' | 'done';
-const ITEMS: Item[] = [...UPGRADES.map((u) => u.id), 'nitro', 'done'];
-
-/** Between championship rounds every player spends winnings at once, each in their own column. */
+/**
+ * The arcade pit shop: between rounds every player spends winnings at once, each in their own column.
+ * Rows come from the series' parts catalogue.
+ */
 export function shopScene(g: Game): Scene {
   const ses = g.session;
   const net = g.net;
   const online = net.online;
+  const cats = ses.catalog.categories;
+  const rows = [...cats.map((c) => c.id), 'nitro', 'done'];
   // Online, the server holds the money: purchases are requests and the totals come back from it.
   let humans = ses.locals;
   const cursor = humans.map(() => 0);
@@ -33,15 +36,15 @@ export function shopScene(g: Game): Scene {
           return;
         }
         if (hit('up')) {
-          cursor[i] = (cursor[i] + ITEMS.length - 1) % ITEMS.length;
+          cursor[i] = (cursor[i] + rows.length - 1) % rows.length;
           g.sfx.play('move');
         }
         if (hit('down')) {
-          cursor[i] = (cursor[i] + 1) % ITEMS.length;
+          cursor[i] = (cursor[i] + 1) % rows.length;
           g.sfx.play('move');
         }
         if (hit('ok')) {
-          const it = ITEMS[cursor[i]];
+          const it = rows[cursor[i]];
           if (it === 'done') {
             if (online) net.send({ t: 'ready', v: true });
             else ready[i] = true;
@@ -62,35 +65,37 @@ export function shopScene(g: Game): Scene {
     },
     draw() {
       const s = g.screen;
-      s.rect(0, 0, VIEW_W, 270, '#14121c');
-      s.text('PIT SHOP', VIEW_W / 2, 10, '#ffb020', { align: 'center', size: 16 });
-      if (online && net.watching) s.text('WATCHING - YOU RACE NEXT', VIEW_W / 2, 120, '#58c8ff', { align: 'center' });
+      backdrop(s, 'PIT SHOP', `ROUND ${ses.round + 2} NEXT`);
+      if (online && net.watching) s.text('WATCHING - YOU RACE NEXT', VIEW_W / 2, 120, UI.cool, { align: 'center' });
       const w = 112;
+      const step = Math.min(30, 170 / rows.length);
       const x0 = (VIEW_W - humans.length * (w + 6) + 6) / 2;
       humans.forEach((d, i) => {
         const x = x0 + i * (w + 6);
-        s.rect(x, 34, w, 228, '#22202e');
-        s.rect(x, 34, w, 4, TRUCK_COLORS[d.slot].css);
-        drawTruck(s.ctx, d.slot, x + 22, 58, 0, 0, 2);
-        s.text(d.name, x + 44, 44, '#fff');
-        s.text(`$${d.money}`, x + 44, 56, '#ffd84a');
-        ITEMS.forEach((it, k) => {
-          const y = 76 + k * 30;
+        panel(s, x, 38, w, 226, !ready[i], TRUCK_COLORS[d.slot].css);
+        s.rect(x, 38, w, 4, TRUCK_COLORS[d.slot].css);
+        drawVehicle(s.ctx, d.vehicle, d.slot, ses.style, x + 22, 62, 0, 0, 1.6);
+        s.text(d.name, x + 44, 48, '#fff');
+        s.text(`$${d.money}`, x + 44, 60, UI.gold);
+        rows.forEach((it, k) => {
+          const y = 80 + k * step;
           const on = cursor[i] === k && !ready[i];
           if (on) s.rect(x + 3, y - 3, w - 6, it === 'done' ? 14 : 26, '#3a3650');
-          const col = on ? '#ffd84a' : '#d8d8e0';
+          const col = on ? UI.gold : UI.text;
           if (it === 'done') {
-            s.text(ready[i] ? 'READY' : 'DONE', x + w / 2, y, ready[i] ? '#58e070' : col, { align: 'center' });
+            s.text(ready[i] ? 'READY' : 'DONE', x + w / 2, y, ready[i] ? UI.good : col, { align: 'center' });
           } else if (it === 'nitro') {
             s.text('NITRO', x + 7, y, col);
-            s.text(`x${d.nitro}`, x + w - 7, y, '#58c8ff', { align: 'right' });
-            s.text(`$${NITRO_PRICE}`, x + 7, y + 12, d.money >= NITRO_PRICE ? '#9a9aa8' : '#a04848');
+            s.text(`x${d.nitro}`, x + w - 7, y, UI.cool, { align: 'right' });
+            s.text(`$${ses.catalog.nitroPrice}`, x + 7, y + 12, d.money >= ses.catalog.nitroPrice ? UI.dim : UI.bad);
           } else {
-            const lvl = d.up[it];
-            s.text(UPGRADES.find((u) => u.id === it)!.name, x + 7, y, col);
-            for (let p = 0; p < MAX_LEVEL; p++) s.rect(x + w - 39 + p * 7, y + 13, 5, 5, p < lvl ? '#58e070' : '#44405a');
-            const price = upgradePrice(lvl);
-            s.text(lvl >= MAX_LEVEL ? 'MAX' : `$${price}`, x + 7, y + 12, lvl < MAX_LEVEL && d.money >= price ? '#9a9aa8' : '#a04848');
+            const cat = cats[k];
+            const lvl = d.up[it] ?? 0;
+            const max = cat.tiers.length - 1;
+            s.text(cat.name, x + 7, y, col);
+            for (let p = 0; p < max; p++) s.rect(x + w - 4 - (max - p) * 7, y + 13, 5, 5, p < lvl ? UI.good : '#44405a');
+            const price = ses.price(d, it);
+            s.text(price < 0 ? 'MAX' : `$${price}`, x + 7, y + 12, price >= 0 && d.money >= price ? UI.dim : UI.bad);
           }
         });
       });

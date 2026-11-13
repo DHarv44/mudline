@@ -1,34 +1,46 @@
-import { VIEW_H, VIEW_W } from '../core/config';
-import { SIM_DT } from '../core/config';
-import { TRACKS } from '../content/tracks';
-import { CPU_NAMES, statsFor } from '../content/trucks';
+import { SIM_DT, VIEW_H, VIEW_W } from '../core/config';
+import { MODES, seriesOf } from '../content/registry';
 import type { Game, Scene } from '../game/game';
+import { Session } from '../game/session';
 import { RaceView } from '../render/raceView';
 import { aiControls } from '../sim/ai';
 import { Race } from '../sim/race';
-import { ListMenu } from '../ui/menu';
+import { cover, dirs, inBox, panel, UI } from '../ui/kit';
 
-/** Title screen over a computer-driven race, arcade attract-mode style. */
+const EXTRA = ['PLAY ONLINE', 'OPTIONS'];
+
+/** Title screen: pick a mode from picture cards, over a computer-driven race. */
 export function titleScene(g: Game): Scene {
-  const menu = new ListMenu(['PLAY ONLINE', 'CHAMPIONSHIP', 'QUICK RACE', 'OPTIONS']);
   let race: Race;
   let view: RaceView;
   let acc = 0;
   let n = 0;
+  let sel = 0;
+  const top = MODES.length;
+  const cardW = (440 - (top - 1) * 12) / top;
+  const cardX = (i: number) => 20 + i * (cardW + 12);
+  const btnX = (i: number) => 20 + i * 226;
 
+  // The attract race cycles through every series the packs supply.
   const demo = () => {
-    const compact = TRACKS.filter((t) => !t.long);
-    const def = compact[n++ % compact.length];
-    const built = g.tracks.get(def.id);
-    const entries = CPU_NAMES.map((name, slot) => ({
-      slot, human: false, name, nitro: 2,
-      stats: statsFor({ tires: 2, shocks: 2, accel: 2, speed: 1 + (slot % 2) }, 0.95),
-    }));
-    race = new Race(built.track, entries, 3, Date.now() & 0xffff);
+    const all = MODES.flatMap((m) => seriesOf(m.id));
+    const ses = new Session();
+    const series = all[n % all.length];
+    ses.setup([null, null, null, null], 'quick', series.id);
+    ses.round = n++ % series.tracks.length;
+    const built = g.tracks.get(ses.trackId, ses.style);
+    race = new Race(built.track, ses.entries(), 2, Date.now() & 0xffff);
     race.count = 0.5;
-    view = new RaceView(race, built.art);
+    view = new RaceView(race, built, ses.style);
   };
   demo();
+
+  const choose = (i: number) => {
+    g.sfx.play('ok');
+    if (i < top) g.go('events', MODES[i].id);
+    else if (i === top) g.go('online');
+    else g.go('options');
+  };
 
   return {
     update(dt) {
@@ -39,24 +51,58 @@ export function titleScene(g: Game): Scene {
       }
       race.events.length = 0;
       view.update(dt);
-      if (race.phase === 'done') demo();
+      if (race.phase === 'done' || race.time > 45) demo();
 
-      const pick = menu.nav(g);
-      if (pick === 0) g.go('online');
-      else if (pick === 1) g.go('lobby', 'champ');
-      else if (pick === 2) g.go('lobby', 'quick');
-      else if (pick === 3) g.go('options');
+      const { dx, dy } = dirs(g);
+      const before = sel;
+      if (sel < top) {
+        sel = Math.max(0, Math.min(top - 1, sel + dx));
+        if (dy > 0) sel = top + Math.min(EXTRA.length - 1, Math.round((sel / Math.max(1, top - 1)) * (EXTRA.length - 1)));
+      } else {
+        sel = Math.max(top, Math.min(top + EXTRA.length - 1, sel + dx));
+        if (dy < 0) sel = Math.min(top - 1, sel - top);
+      }
+      const m = g.screen.mouse;
+      if (m.moved || m.click) {
+        for (let i = 0; i < top; i++) if (inBox(g, cardX(i), 86, cardW, 106)) sel = i;
+        for (let i = 0; i < EXTRA.length; i++) if (inBox(g, btnX(i), 206, 214, 26)) sel = top + i;
+        const over = sel < top ? inBox(g, cardX(sel), 86, cardW, 106) : inBox(g, btnX(sel - top), 206, 214, 26);
+        if (m.click && over) {
+          choose(sel);
+          return;
+        }
+      }
+      if (sel !== before) g.sfx.play('move');
+      if (g.input.anyHit('ok') >= 0) choose(sel);
     },
     draw() {
       const s = g.screen;
       view.draw(s);
-      s.rect(0, 0, VIEW_W, VIEW_H, 'rgba(10,8,16,0.55)');
+      s.rect(0, 0, VIEW_W, VIEW_H, 'rgba(10,8,16,0.62)');
       const cx = VIEW_W / 2;
-      s.text('MUDLINE', cx + 3, 51, '#7a1c10', { align: 'center', size: 40, shadow: '#1a0c08' });
-      s.text('MUDLINE', cx, 48, '#ffb020', { align: 'center', size: 40, shadow: '#e04818' });
-      s.rect(cx - 142, 94, 284, 3, '#ffd84a');
-      s.rect(cx - 142, 99, 284, 1, '#e04818');
-      menu.draw(g, cx, 140, 20, 'center');
+      s.text('MUDLINE', cx + 3, 23, '#7a1c10', { align: 'center', size: 40, shadow: '#1a0c08' });
+      s.text('MUDLINE', cx, 20, UI.amber, { align: 'center', size: 40, shadow: UI.fire });
+      s.rect(cx - 142, 66, 284, 3, UI.gold);
+      s.rect(cx - 142, 71, 284, 1, UI.fire);
+
+      MODES.forEach((mode, i) => {
+        const x = cardX(i);
+        const on = sel === i;
+        const all = seriesOf(mode.id);
+        panel(s, x, 86, cardW, 106, on);
+        s.ctx.imageSmoothingEnabled = mode.style === 'modern';
+        cover(s, g.tracks.thumb(all[all.length - 1].tracks[0], mode.style), x + 4, 90, cardW - 8, 62);
+        s.ctx.imageSmoothingEnabled = false;
+        s.text(mode.name, x + cardW / 2, 158, on ? UI.gold : UI.text, { align: 'center', size: 16 });
+        const tracks = new Set(all.flatMap((k) => k.tracks)).size;
+        const rides = new Set(all.flatMap((k) => k.vehicles)).size;
+        s.text(`${tracks} TRACKS  ${rides} ${rides === 1 ? 'VEHICLE' : 'VEHICLES'}`, x + cardW / 2, 179, UI.dim, { align: 'center', shadow: false });
+      });
+      EXTRA.forEach((label, i) => {
+        const on = sel === top + i;
+        panel(s, btnX(i), 206, 214, 26, on);
+        s.text(label, btnX(i) + 107, 215, on ? UI.gold : UI.text, { align: 'center' });
+      });
     },
   };
 }

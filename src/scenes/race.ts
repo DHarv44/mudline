@@ -1,5 +1,5 @@
 import { SIM_DT, VIEW_H, VIEW_W } from '../core/config';
-import { trackById } from '../content/tracks';
+import { trackById } from '../content/registry';
 import type { Game, Scene } from '../game/game';
 import { drawHud } from '../render/hud';
 import { RaceView } from '../render/raceView';
@@ -11,9 +11,9 @@ import { ListMenu } from '../ui/menu';
 export function raceScene(g: Game): Scene {
   const ses = g.session;
   const def = trackById(ses.trackId);
-  const built = g.tracks.get(def.id);
+  const built = g.tracks.get(def.id, ses.style);
   const race = new Race(built.track, ses.entries(), def.laps, (Date.now() & 0xffff) + ses.round);
-  const view = new RaceView(race, built.art);
+  const view = new RaceView(race, built, ses.style);
   const pause = new ListMenu(['RESUME', 'RESTART', 'QUIT']);
   const pad: Controls = { steer: 0, gas: 0, brake: 0, nitro: false };
   let paused = false;

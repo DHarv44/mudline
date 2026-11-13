@@ -1,7 +1,5 @@
-import { TRUCK_R } from '../core/config';
-import { DIRT, JUMP, MUD, WATER, WHOOPS } from '../content/tracks';
-import type { Stats } from '../content/trucks';
-import { sdAt, surfAt } from '../track/build';
+import { DIRT, JUMP, MUD, SAND, Stats, WATER, WHOOPS } from '../content/types';
+import { nearAt, sdAt, surfAt } from '../track/build';
 import type { Race } from './race';
 
 export interface Controls { steer: number; gas: number; brake: number; nitro: boolean }
@@ -12,6 +10,9 @@ export interface Truck {
   slot: number;
   human: boolean;
   name: string;
+  /** Vehicle id, for drawing. */
+  vehicle: string;
+  radius: number;
   stats: Stats;
   x: number; y: number; z: number; vz: number;
   vx: number; vy: number; h: number;
@@ -31,6 +32,8 @@ export interface Truck {
   nitroHeld: boolean;
   cash: number;
   lastSurf: number;
+  /** Strength of the ramp last driven over. */
+  lastPow: number;
   whoop: number;
   bigAir: boolean;
   slip: number;
@@ -57,16 +60,21 @@ export function stepTruck(t: Truck, c: Controls, race: Race, dt: number): void {
   } else if (surf === WATER) {
     maxV *= 0.72;
     grip *= 0.7;
+  } else if (surf === SAND) {
+    maxV *= 0.55 + 0.45 * st.mud;
+    grip *= 0.75;
+  } else if (surf === JUMP) {
+    t.lastPow = tr.samplePow[nearAt(tr, t.x, t.y)];
   }
   if (c.nitro && !t.nitroHeld && t.nitro > 0 && t.nitroT <= 0 && grounded) {
     t.nitro--;
-    t.nitroT = 1.1;
+    t.nitroT = st.boostTime;
     race.events.push({ type: 'nitro', slot: t.slot });
   }
   t.nitroHeld = c.nitro;
   if (t.nitroT > 0) {
     t.nitroT -= dt;
-    maxV *= 1.5;
+    maxV *= st.boost;
     acc *= 2.8;
   }
 
@@ -92,7 +100,7 @@ export function stepTruck(t: Truck, c: Controls, race: Race, dt: number): void {
     t.vx = fx * vf - fy * vl;
     t.vy = fy * vf + fx * vl;
   } else {
-    t.h += c.steer * 1.2 * dt;
+    t.h += c.steer * st.air * dt;
   }
 
   t.x += t.vx * dt;
@@ -101,7 +109,7 @@ export function stepTruck(t: Truck, c: Controls, race: Race, dt: number): void {
 
   if (grounded) {
     if (t.lastSurf === JUMP && surf !== JUMP && sp > 45) {
-      t.vz = Math.min(80, sp * 0.5);
+      t.vz = Math.min(110, sp * 0.5 * st.jump * t.lastPow);
       t.z = 0.01;
       t.bigAir = true;
     } else if (surf === WHOOPS && sp > 40) {
@@ -141,7 +149,7 @@ export function stepTruck(t: Truck, c: Controls, race: Race, dt: number): void {
 
 function collideWall(t: Truck, race: Race, dt: number): void {
   const tr = race.track;
-  const d = sdAt(tr, t.x, t.y) + TRUCK_R;
+  const d = sdAt(tr, t.x, t.y) + t.radius;
   if (d <= 0) return;
   const gx = sdAt(tr, t.x + 1, t.y) - sdAt(tr, t.x - 1, t.y);
   const gy = sdAt(tr, t.x, t.y + 1) - sdAt(tr, t.x, t.y - 1);
@@ -179,6 +187,8 @@ function effects(t: Truck, race: Race, surf: number, sp: number, dt: number, gro
   if (!grounded || sp < 30) return;
   if (surf === WATER) {
     if (r() < dt * 40) race.parts.emit(bx, by, (r() - 0.5) * 50, (r() - 0.5) * 50 - 10, 0.35, r() < 0.5 ? '#bfe4ff' : '#6ab0f0', 1.5);
+  } else if (surf === SAND) {
+    if (r() < dt * 30) race.parts.emit(bx, by, (r() - 0.5) * 30, (r() - 0.5) * 30 - 6, 0.5, '#f0dca8', 1.5);
   } else if (surf === MUD) {
     if (r() < dt * 30) race.parts.emit(bx, by, (r() - 0.5) * 40, (r() - 0.5) * 40, 0.4, '#4a2c18', 1.5);
   } else if (r() < dt * (8 + t.slip * 0.6)) {

@@ -1,4 +1,4 @@
-import { VIEW_W } from '../core/config';
+import { backdrop } from '../ui/kit';
 import type { Game, Scene } from '../game/game';
 import { saveSettings } from '../game/settings';
 import { ListMenu } from '../ui/menu';
@@ -50,8 +50,7 @@ export function optionsScene(g: Game): Scene {
     },
     draw() {
       const s = g.screen;
-      s.rect(0, 0, VIEW_W, 270, '#14121c');
-      s.text('OPTIONS', VIEW_W / 2, 20, '#ffb020', { align: 'center', size: 16 });
+      backdrop(s, 'OPTIONS');
       menu.draw(g, 150, 76, 22);
     },
   };

@@ -1,41 +1,58 @@
 import { VIEW_H, VIEW_W } from '../core/config';
+import type { BuiltTrack } from '../game/game';
 import type { Race } from '../sim/race';
 import type { Screen } from './screen';
-import { drawTruck } from './truckSprites';
+import { drawVehicle, Style } from './sprites';
 
-/** Draws the world for one race: track, tyre marks, pickups, particles, trucks. */
+/** Draws the world for one race: track, tyre marks, pickups, particles, vehicles. */
 export class RaceView {
   private canvas: HTMLCanvasElement;
   private mctx: CanvasRenderingContext2D;
+  private k: number;
   private cx: number;
   private cy: number;
   private zoom: number;
   private t = 0;
+  private moving: boolean;
 
-  constructor(private race: Race, pristine: HTMLCanvasElement) {
+  constructor(private race: Race, built: BuiltTrack, private style: Style) {
     this.canvas = document.createElement('canvas');
-    this.canvas.width = pristine.width;
-    this.canvas.height = pristine.height;
+    this.canvas.width = built.art.width;
+    this.canvas.height = built.art.height;
     this.mctx = this.canvas.getContext('2d')!;
-    this.mctx.drawImage(pristine, 0, 0);
-    this.cx = pristine.width / 2;
-    this.cy = pristine.height / 2;
-    this.zoom = VIEW_W / pristine.width;
-    if (race.track.def.long) this.aim(1);
+    this.mctx.drawImage(built.art, 0, 0);
+    this.k = built.k;
+    const tr = race.track;
+    this.cx = tr.w / 2;
+    this.cy = tr.h / 2;
+    this.zoom = VIEW_W / tr.w;
+    this.moving = tr.w > VIEW_W;
+    if (this.moving) this.aim(1);
   }
 
   update(dt: number): void {
     this.t += dt;
     const m = this.race.marks;
     if (m.length) {
-      this.mctx.fillStyle = 'rgba(48,28,16,0.3)';
-      for (let i = 0; i < m.length; i += 2) this.mctx.fillRect(m[i] | 0, m[i + 1] | 0, 1, 1);
+      const k = this.k;
+      const c = this.mctx;
+      if (this.style === 'modern') {
+        c.fillStyle = 'rgba(40,24,14,0.16)';
+        for (let i = 0; i < m.length; i += 2) {
+          c.beginPath();
+          c.arc(m[i] * k, m[i + 1] * k, 0.8 * k, 0, 6.3);
+          c.fill();
+        }
+      } else {
+        c.fillStyle = 'rgba(48,28,16,0.3)';
+        for (let i = 0; i < m.length; i += 2) c.fillRect(m[i] | 0, m[i + 1] | 0, 1, 1);
+      }
       m.length = 0;
     }
-    if (this.race.track.def.long) this.aim(1 - Math.exp(-3.5 * dt));
+    if (this.moving) this.aim(1 - Math.exp(-3.5 * dt));
   }
 
-  /** Long tracks: frame every human truck, zooming out as they spread apart. */
+  /** Large tracks: frame every human vehicle, zooming out as they spread apart. */
   private aim(f: number): void {
     const tr = this.race.track;
     let who = this.race.trucks.filter((t) => t.human && !t.finished);
@@ -65,19 +82,21 @@ export class RaceView {
   draw(s: Screen): void {
     const c = s.ctx;
     const race = this.race;
+    const modern = this.style === 'modern';
     c.save();
+    c.imageSmoothingEnabled = modern;
     c.translate(VIEW_W / 2, VIEW_H / 2);
     c.scale(this.zoom, this.zoom);
     c.translate(-this.cx, -this.cy);
-    c.drawImage(this.canvas, 0, 0);
+    c.drawImage(this.canvas, 0, 0, race.track.w, race.track.h);
 
     for (const p of race.pickups) {
       if (p.t < 3 && Math.floor(p.t * 8) % 2 === 0) continue;
-      const bob = Math.sin(this.t * 6 + p.x) > 0 ? 1 : 0;
-      const x = Math.round(p.x);
-      const y = Math.round(p.y) - bob;
+      const bob = modern ? Math.sin(this.t * 5 + p.x) * 0.8 : Math.sin(this.t * 6 + p.x) > 0 ? 1 : 0;
+      const x = modern ? p.x : Math.round(p.x);
+      const y = (modern ? p.y : Math.round(p.y)) - bob;
       c.fillStyle = 'rgba(0,0,0,0.35)';
-      c.fillRect(x - 3, Math.round(p.y) + 3, 6, 2);
+      c.fillRect(x - 3, p.y + 3, 6, 2);
       if (p.type === 'nitro') {
         c.fillStyle = '#101018';
         c.fillRect(x - 3, y - 5, 6, 9);
@@ -98,9 +117,23 @@ export class RaceView {
       }
     }
 
-    race.parts.draw(c);
+    if (modern) {
+      // Soft round puffs instead of square pixels.
+      for (const p of race.parts.list) {
+        const a = p.life / p.max;
+        c.globalAlpha = Math.min(0.7, a);
+        c.fillStyle = p.color;
+        c.beginPath();
+        c.arc(p.x, p.y, p.size * (1.6 - a * 0.7), 0, 6.3);
+        c.fill();
+      }
+      c.globalAlpha = 1;
+    } else {
+      race.parts.draw(c);
+    }
     const order = [...race.trucks].sort((a, b) => a.y - b.y);
-    for (const t of order) drawTruck(c, t.slot, t.x, t.y, t.h, t.z * 1.6);
+    for (const t of order) drawVehicle(c, t.vehicle, t.slot, this.style, t.x, t.y, t.h, t.z * 1.6);
     c.restore();
+    c.imageSmoothingEnabled = false;
   }
 }
