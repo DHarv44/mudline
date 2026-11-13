@@ -21,6 +21,8 @@ export class InputHub {
   cur: DevState[] = [];
   prev: DevState[] = [];
   private keys = new Set<string>();
+  /** Browser gamepad index held by each of the four PAD slots, or -1. */
+  private padIndex = [-1, -1, -1, -1];
   /** When set, the next key press is handed here instead of being treated as input. */
   capture: ((code: string) => void) | null = null;
   onGesture: (() => void) | null = null;
@@ -63,12 +65,22 @@ export class InputHub {
       s.back = i === 0 && (k.has('Escape') || k.has('Backspace'));
       s.start = i === 0 && k.has('Escape');
     }
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    // Only standard-layout pads: wheels, flight sticks and pedals rest off-centre and would steer the menus.
+    // The browser may list a pad after several such devices, so pads are found anywhere in its list
+    // and each keeps the first free PAD slot for as long as it stays connected.
+    const all = navigator.getGamepads ? navigator.getGamepads() : [];
+    const live = new Map<number, Gamepad>();
+    for (const p of all) if (p && p.connected && p.mapping === 'standard') live.set(p.index, p);
+    for (let i = 0; i < 4; i++) if (this.padIndex[i] >= 0 && !live.has(this.padIndex[i])) this.padIndex[i] = -1;
+    for (const idx of live.keys()) {
+      if (this.padIndex.includes(idx)) continue;
+      const free = this.padIndex.indexOf(-1);
+      if (free >= 0) this.padIndex[free] = idx;
+    }
     for (let i = 0; i < 4; i++) {
       const s = this.cur[4 + i];
-      const p = pads[i];
-      // Only standard-layout pads: wheels, flight sticks and pedals rest off-centre and would steer the menus.
-      if (!p || !p.connected || p.mapping !== 'standard') {
+      const p = live.get(this.padIndex[i]);
+      if (!p) {
         Object.assign(s, blank());
         continue;
       }
