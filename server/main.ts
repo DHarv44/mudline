@@ -9,6 +9,7 @@ import { Conn, Room } from './room';
 const PORT = Number(process.env.PORT) || 5227;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const MAX_ROOMS = 200;
+const EMPTY_GRACE_MS = 3 * 60 * 1000;
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
   '.woff2': 'font/woff2', '.woff': 'font/woff', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
@@ -54,8 +55,21 @@ function newCode(): string {
 const wss = new WebSocketServer({ server: http, path: '/ws', maxPayload: 1024 });
 
 wss.on('connection', (ws) => {
+  let alive = true;
+  ws.on('pong', () => (alive = true));
+  // Regular pings keep proxies from closing a quiet lobby, and notice players whose connection died silently.
+  const beat = setInterval(() => {
+    if (!alive) {
+      ws.terminate();
+      return;
+    }
+    alive = false;
+    ws.ping();
+  }, 15000);
+
   const conn: Conn = {
     id: nextId++,
+    pid: '',
     room: null,
     send(m) {
       if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(m));
@@ -81,10 +95,11 @@ wss.on('connection', (ws) => {
     } catch {
       return;
     }
-    if (!m || typeof m.t !== 'string') return;
+    if (!m || typeof m.t !== 'string' || m.t === 'ping') return;
 
     if (m.t === 'create' || m.t === 'join') {
       if (conn.room) return;
+      conn.pid = String(m.pid ?? '').slice(0, 40) || `anon-${conn.id}`;
       let room: Room | undefined;
       if (m.t === 'create') {
         if (rooms.size >= MAX_ROOMS) {
@@ -100,18 +115,15 @@ wss.on('connection', (ws) => {
           return;
         }
       }
-      const err = room.add(conn);
-      if (err) conn.send({ t: 'error', msg: err });
+      room.add(conn);
       return;
     }
     conn.room?.handle(conn, m);
   });
 
   ws.on('close', () => {
-    const room = conn.room;
-    if (!room) return;
-    room.remove(conn);
-    if (!room.conns.size) rooms.delete(room.code);
+    clearInterval(beat);
+    conn.room?.remove(conn);
   });
   ws.on('error', () => ws.close());
 });
@@ -121,7 +133,11 @@ setInterval(() => {
   const now = performance.now();
   const dt = (now - last) / 1000;
   last = now;
-  for (const room of rooms.values()) room.update(dt);
+  for (const room of rooms.values()) {
+    room.update(dt);
+    // An empty room is kept for a while so players who all dropped at once can come back to it.
+    if (room.emptySince && Date.now() - room.emptySince > EMPTY_GRACE_MS) rooms.delete(room.code);
+  }
 }, 1000 / 60);
 
 http.listen(PORT, () => console.log(`MUDLINE server on port ${PORT}`));

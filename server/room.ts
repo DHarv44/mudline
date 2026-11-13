@@ -2,7 +2,7 @@ import { SIM_DT, SLOTS } from '../src/core/config';
 import { TRACKS, trackById } from '../src/content/tracks';
 import type { UpgradeId } from '../src/content/trucks';
 import { Session } from '../src/game/session';
-import type { ClientMsg, DriverInfo, Mode, RoomState, ServerMsg } from '../src/net/protocol';
+import type { ClientMsg, DriverInfo, Mode, RaceMsg, RoomState, ServerMsg } from '../src/net/protocol';
 import { aiControls } from '../src/sim/ai';
 import { Race } from '../src/sim/race';
 import type { Controls, Truck } from '../src/sim/truck';
@@ -10,6 +10,8 @@ import { buildTrack, Track } from '../src/track/build';
 
 export interface Conn {
   id: number;
+  /** Identifies the player's browser across reconnects. */
+  pid: string;
   room: Room | null;
   send(m: ServerMsg): void;
 }
@@ -28,14 +30,23 @@ function trackFor(id: string): Track {
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-/** One online game: up to four players, the race itself, and the championship around it. */
+/**
+ * One online game: up to four players, the race itself, and the championship around it.
+ * A player who drops out mid-game keeps their truck (the computer drives it) and takes it back on return.
+ * Anyone else who arrives mid-game watches, and is given a free truck at the next race.
+ */
 export class Room {
   conns = new Map<number, Conn>();
+  /** When the last player left, or 0 while anyone is connected. */
+  emptySince = 0;
   private host = -1;
   private seats: (number | null)[] = new Array(SLOTS).fill(null);
+  /** The player each truck belongs to, kept while they are away. */
+  private owners: (string | null)[] = new Array(SLOTS).fill(null);
   private state: RoomState = 'lobby';
   private session = new Session();
   private race: Race | null = null;
+  private raceMsg: Omit<RaceMsg, 'drivers'> | null = null;
   private inputs: Controls[] = [];
   private last: Controls[] = [];
   private ready: boolean[] = new Array(SLOTS).fill(false);
@@ -49,17 +60,25 @@ export class Room {
     }
   }
 
-  /** Returns an error message, or null when the player is seated. */
-  add(c: Conn): string | null {
-    if (this.state !== 'lobby') return 'RACE IN PROGRESS';
-    const free = this.seats.indexOf(null);
-    if (free < 0) return 'ROOM FULL';
-    this.seats[free] = c.id;
+  add(c: Conn): void {
     this.conns.set(c.id, c);
     c.room = this;
-    if (this.host < 0) this.host = c.id;
+    this.emptySince = 0;
+    if (!this.conns.has(this.host)) this.host = c.id;
+    if (this.state === 'lobby') {
+      this.seatWatchers();
+    } else {
+      // Back after a drop: the truck that was theirs is theirs again.
+      const slot = this.owners.findIndex((o, i) => o === c.pid && this.seats[i] === null);
+      if (slot >= 0) {
+        this.seats[slot] = c.id;
+        this.session.drivers[slot].device = 0;
+        const t = this.race?.trucks.find((k) => k.slot === slot);
+        if (t) t.human = true;
+      }
+    }
     this.sendRoom();
-    return null;
+    this.catchUp(c);
   }
 
   remove(c: Conn): void {
@@ -68,72 +87,58 @@ export class Room {
     const slot = this.seats.indexOf(c.id);
     if (slot >= 0) {
       this.seats[slot] = null;
-      // Mid-game, the computer takes over the truck.
-      const d = this.session.drivers[slot];
-      if (d && this.state !== 'lobby') d.device = null;
-      const t = this.race?.trucks.find((k) => k.slot === slot);
-      if (t) t.human = false;
+      Object.assign(this.inputs[slot], { steer: 0, gas: 0, brake: 0, nitro: false });
+      if (this.state === 'lobby') {
+        this.owners[slot] = null;
+      } else {
+        // Mid-game the computer drives until they come back.
+        this.session.drivers[slot].device = null;
+        const t = this.race?.trucks.find((k) => k.slot === slot);
+        if (t) t.human = false;
+      }
+    }
+    if (!this.conns.size) {
+      this.emptySince = Date.now();
+      return;
     }
     if (this.host === c.id) this.host = this.conns.keys().next().value ?? -1;
-    if (!this.conns.size) return;
+    if (this.state === 'lobby') this.seatWatchers();
     this.sendRoom();
     if (this.state === 'shop') this.checkShop();
   }
 
   handle(c: Conn, m: ClientMsg): void {
+    if (m.t === 'next') {
+      this.next(c);
+      return;
+    }
+    if (m.t === 'start') {
+      if (c.id !== this.host || this.state !== 'lobby' || this.seats.every((s) => s === null)) return;
+      const mode: Mode = m.mode === 'champ' ? 'champ' : 'quick';
+      this.session.setup(this.seats.map((s) => (s === null ? null : 0)), mode);
+      if (mode === 'quick') this.session.round = Math.max(0, Math.min(TRACKS.length - 1, Math.floor(Number(m.track) || 0)));
+      this.beginRace();
+      return;
+    }
     const slot = this.seats.indexOf(c.id);
     if (slot < 0) return;
-    switch (m.t) {
-      case 'in': {
-        const s = m.s;
-        if (!Array.isArray(s) || s.length < 4) return;
-        const inp = this.inputs[slot];
-        inp.steer = Math.max(-1, Math.min(1, Number(s[0]) || 0));
-        inp.gas = s[1] ? 1 : 0;
-        inp.brake = s[2] ? 1 : 0;
-        inp.nitro = !!s[3];
-        return;
-      }
-      case 'start': {
-        if (c.id !== this.host || this.state !== 'lobby') return;
-        const mode: Mode = m.mode === 'champ' ? 'champ' : 'quick';
-        this.session.setup(this.seats.map((s) => (s === null ? null : 0)), mode);
-        if (mode === 'quick') this.session.round = Math.max(0, Math.min(TRACKS.length - 1, Math.floor(Number(m.track) || 0)));
-        this.beginRace();
-        return;
-      }
-      case 'next': {
-        if (c.id !== this.host) return;
-        if (this.state === 'results') {
-          if (this.session.mode === 'quick') this.toLobby();
-          else if (this.session.lastRound) {
-            this.state = 'champion';
-            this.sendRoom();
-            this.all({ t: 'champion', drivers: this.drivers() });
-          } else {
-            this.state = 'shop';
-            this.ready.fill(false);
-            this.sendRoom();
-            this.all({ t: 'shop', drivers: this.drivers() });
-          }
-        } else if (this.state === 'champion') {
-          this.toLobby();
-        }
-        return;
-      }
-      case 'buy': {
-        if (this.state !== 'shop' || this.ready[slot] || !ITEMS.includes(m.item)) return;
-        this.session.buy(this.session.drivers[slot], m.item as UpgradeId | 'nitro');
-        this.all({ t: 'shop', drivers: this.drivers() });
-        return;
-      }
-      case 'ready': {
-        if (this.state !== 'shop') return;
-        this.ready[slot] = !!m.v;
-        this.all({ t: 'shop', drivers: this.drivers() });
-        this.checkShop();
-        return;
-      }
+    if (m.t === 'in') {
+      const s = m.s;
+      if (!Array.isArray(s) || s.length < 4) return;
+      const inp = this.inputs[slot];
+      inp.steer = Math.max(-1, Math.min(1, Number(s[0]) || 0));
+      inp.gas = s[1] ? 1 : 0;
+      inp.brake = s[2] ? 1 : 0;
+      inp.nitro = !!s[3];
+    } else if (m.t === 'buy') {
+      if (this.state !== 'shop' || this.ready[slot] || !ITEMS.includes(m.item)) return;
+      this.session.buy(this.session.drivers[slot], m.item as UpgradeId | 'nitro');
+      this.all({ t: 'shop', drivers: this.drivers() });
+    } else if (m.t === 'ready') {
+      if (this.state !== 'shop') return;
+      this.ready[slot] = !!m.v;
+      this.all({ t: 'shop', drivers: this.drivers() });
+      this.checkShop();
     }
   }
 
@@ -157,6 +162,26 @@ export class Room {
     }
   }
 
+  private next(c: Conn): void {
+    if (c.id !== this.host) return;
+    if (this.state === 'results') {
+      if (this.session.mode === 'quick') this.toLobby();
+      else if (this.session.lastRound) {
+        this.state = 'champion';
+        this.sendRoom();
+        this.all({ t: 'champion', drivers: this.drivers() });
+      } else {
+        this.state = 'shop';
+        this.ready.fill(false);
+        this.sendRoom();
+        this.all({ t: 'shop', drivers: this.drivers() });
+        this.checkShop();
+      }
+    } else if (this.state === 'champion') {
+      this.toLobby();
+    }
+  }
+
   private control = (t: Truck): Controls => {
     const race = this.race!;
     const c = this.seats[t.slot] !== null && !t.finished ? this.inputs[t.slot] : aiControls(t, race, SIM_DT, t.finished ? 0.5 : 1);
@@ -168,20 +193,56 @@ export class Room {
     return c;
   };
 
+  /** Gives each watching player a truck nobody owns. Returns true if anyone was seated. */
+  private seatWatchers(): boolean {
+    let changed = false;
+    for (const c of this.conns.values()) {
+      if (this.seats.includes(c.id)) continue;
+      const slot = this.seats.findIndex((s, i) => s === null && this.owners[i] === null);
+      if (slot < 0) break;
+      this.seats[slot] = c.id;
+      this.owners[slot] = c.pid;
+      const d = this.session.drivers[slot];
+      if (d && this.state !== 'lobby') {
+        // Joining a championship under way: they take over that computer driver's standing.
+        d.device = 0;
+        const used = new Set(this.session.drivers.map((k) => k.name));
+        let n = 1;
+        while (used.has(`P${n}`)) n++;
+        d.name = `P${n}`;
+      }
+      changed = true;
+    }
+    return changed;
+  }
+
   private beginRace(): void {
+    this.seatWatchers();
     const def = trackById(this.session.trackId);
     for (const i of this.inputs) Object.assign(i, { steer: 0, gas: 0, brake: 0, nitro: false });
     const seed = (Math.random() * 0xffff) | 0;
-    this.race = new Race(trackFor(def.id), this.session.entries(), def.laps, seed);
+    const entries = this.session.entries();
+    this.race = new Race(trackFor(def.id), entries, def.laps, seed);
+    this.raceMsg = { t: 'race', mode: this.session.mode, round: this.session.round, trackId: def.id, laps: def.laps, seed, entries };
     this.acc = 0;
     this.state = 'race';
     this.sendRoom();
-    this.all({ t: 'race', mode: this.session.mode, round: this.session.round, trackId: def.id, laps: def.laps, seed, drivers: this.drivers() });
+    this.all({ ...this.raceMsg, drivers: this.drivers() });
+  }
+
+  /** Brings a player who has just connected up to where the room is. */
+  private catchUp(c: Conn): void {
+    const drivers = this.drivers();
+    if (this.state === 'race' && this.raceMsg) c.send({ ...this.raceMsg, drivers });
+    else if (this.state === 'results') c.send({ t: 'results', rows: this.session.results, drivers });
+    else if (this.state === 'shop') c.send({ t: 'shop', drivers });
+    else if (this.state === 'champion') c.send({ t: 'champion', drivers });
   }
 
   private checkShop(): void {
     const seated = this.seats.map((s, i) => (s === null ? -1 : i)).filter((i) => i >= 0);
-    if (!seated.length || !seated.every((i) => this.ready[i])) return;
+    // With only watchers present there is nobody to wait for; they get trucks in the next race.
+    if (!this.conns.size || !seated.every((i) => this.ready[i])) return;
     this.session.aiShop(Math.random);
     this.session.round++;
     this.beginRace();
@@ -190,6 +251,9 @@ export class Room {
   private toLobby(): void {
     this.state = 'lobby';
     this.race = null;
+    // Trucks held for players who never came back are free again.
+    for (let i = 0; i < SLOTS; i++) if (this.seats[i] === null) this.owners[i] = null;
+    this.seatWatchers();
     this.sendRoom();
   }
 

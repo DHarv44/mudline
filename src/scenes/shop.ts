@@ -23,22 +23,24 @@ export function shopScene(g: Game): Scene {
       if (online) ready[0] = net.ready;
       humans.forEach((d, i) => {
         const dev = d.device!;
+        // Online one browser is one player, so any keys or pad work.
+        const hit = (b: 'up' | 'down' | 'ok' | 'back') => (online ? g.input.anyHit(b) >= 0 : g.input.hit(dev, b));
         if (ready[i]) {
-          if (g.input.hit(dev, 'back')) {
+          if (hit('back')) {
             if (online) net.send({ t: 'ready', v: false });
             else ready[i] = false;
           }
           return;
         }
-        if (g.input.hit(dev, 'up')) {
+        if (hit('up')) {
           cursor[i] = (cursor[i] + ITEMS.length - 1) % ITEMS.length;
           g.sfx.play('move');
         }
-        if (g.input.hit(dev, 'down')) {
+        if (hit('down')) {
           cursor[i] = (cursor[i] + 1) % ITEMS.length;
           g.sfx.play('move');
         }
-        if (g.input.hit(dev, 'ok')) {
+        if (hit('ok')) {
           const it = ITEMS[cursor[i]];
           if (it === 'done') {
             if (online) net.send({ t: 'ready', v: true });
@@ -62,6 +64,7 @@ export function shopScene(g: Game): Scene {
       const s = g.screen;
       s.rect(0, 0, VIEW_W, 270, '#14121c');
       s.text('PIT SHOP', VIEW_W / 2, 10, '#ffb020', { align: 'center', size: 16 });
+      if (online && net.watching) s.text('WATCHING - YOU RACE NEXT', VIEW_W / 2, 120, '#58c8ff', { align: 'center' });
       const w = 112;
       const x0 = (VIEW_W - humans.length * (w + 6) + 6) / 2;
       humans.forEach((d, i) => {

@@ -11,12 +11,10 @@ export function onlineScene(g: Game, invite?: string): Scene {
   const can = NetClient.base() !== null;
   let mode: 'menu' | 'code' | 'invite' | 'busy' = invite ? 'invite' : 'menu';
   let code = (invite ?? '').toUpperCase().slice(0, CODE_LEN);
-  let chosen = 0;
 
-  const join = (dev: number) => {
-    net.device = dev;
+  const join = () => {
     mode = 'busy';
-    net.connect({ t: 'join', code });
+    net.join(code);
   };
 
   const typeCode = () => {
@@ -28,7 +26,7 @@ export function onlineScene(g: Game, invite?: string): Scene {
       }
       if (key === 'Backspace') code = code.slice(0, -1);
       else if ((key === 'Enter' || key === 'NumpadEnter') && code.length === CODE_LEN) {
-        join(chosen);
+        join();
         return;
       } else if (key.startsWith('Key') && CODE_LETTERS.includes(key[3]) && code.length < CODE_LEN) code += key[3];
       typeCode();
@@ -37,15 +35,18 @@ export function onlineScene(g: Game, invite?: string): Scene {
 
   return {
     update() {
-      if (mode === 'busy' || mode === 'code') return;
       const back = g.input.anyHit('back') >= 0;
+      if (net.reconnecting) {
+        if (back) net.close();
+        return;
+      }
+      // A failed attempt drops back to the menu, where the reason is shown.
+      if (mode === 'busy' && net.error) mode = 'menu';
+      if (mode === 'busy' || mode === 'code') return;
       if (mode === 'invite') {
-        let dev = g.input.anyHit('gas');
-        if (dev < 0) dev = g.input.anyHit('ok');
-        if (dev < 0 && g.screen.mouse.click) dev = 0;
-        if (dev >= 0 && can) {
+        if ((g.input.anyHit('gas') >= 0 || g.input.anyHit('ok') >= 0 || g.screen.mouse.click) && can) {
           g.sfx.play('ok');
-          join(dev);
+          join();
         } else if (back) {
           mode = 'menu';
         }
@@ -56,17 +57,14 @@ export function onlineScene(g: Game, invite?: string): Scene {
         g.go('title');
         return;
       }
-      const dev = g.input.anyHit('ok');
       const pick = menu.nav(g);
       if (pick === 2) g.go('title');
       if (!can || pick < 0) return;
       if (pick === 0) {
-        net.device = dev;
         mode = 'busy';
-        net.connect({ t: 'create' });
+        net.create();
       } else if (pick === 1) {
         net.error = '';
-        chosen = Math.max(0, dev);
         code = '';
         mode = 'code';
         typeCode();
@@ -77,6 +75,11 @@ export function onlineScene(g: Game, invite?: string): Scene {
       const cx = VIEW_W / 2;
       s.rect(0, 0, VIEW_W, 270, '#14121c');
       s.text('ONLINE', cx, 20, '#ffb020', { align: 'center', size: 16 });
+      if (net.reconnecting) {
+        s.text('CONNECTION LOST', cx, 100, '#ff8048', { align: 'center' });
+        if (s.blink()) s.text('RECONNECTING', cx, 124, '#d8d8e0', { align: 'center' });
+        return;
+      }
       if (!can) {
         s.text('ONLINE PLAY RUNS FROM THE WEB VERSION', cx, 70, '#ff8048', { align: 'center' });
       } else if (net.error) {

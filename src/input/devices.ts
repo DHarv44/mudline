@@ -21,6 +21,7 @@ export class InputHub {
   cur: DevState[] = [];
   prev: DevState[] = [];
   private keys = new Set<string>();
+  private all = blank();
   /** Browser gamepad index held by each of the four PAD slots, or -1. */
   private padIndex = [-1, -1, -1, -1];
   /** When set, the next key press is handed here instead of being treated as input. */
@@ -99,6 +100,20 @@ export class InputHub {
       s.back = btn(1);
       s.start = btn(9);
     }
+  }
+
+  /** Every device combined, for online play where one browser is one player on any keys or pad. */
+  merged(): DevState {
+    const m = this.all;
+    Object.assign(m, blank());
+    for (const s of this.cur) {
+      m.steer += s.steer;
+      m.gas ||= s.gas;
+      m.brake ||= s.brake;
+      m.nitro ||= s.nitro;
+    }
+    m.steer = Math.max(-1, Math.min(1, m.steer));
+    return m;
   }
 
   hit(dev: number, b: Button): boolean {

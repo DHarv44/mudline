@@ -69,7 +69,8 @@ export function netLobbyScene(g: Game): Scene {
         }
       }
       menu.draw(g, 110, 156, 18);
-      if (!net.isHost) s.text('WAITING FOR HOST TO START', VIEW_W / 2, 204, '#9a9aa8', { align: 'center' });
+      if (net.watching) s.text('ROOM IS FULL - YOU ARE WATCHING', VIEW_W / 2, 222, '#58c8ff', { align: 'center' });
+      else if (!net.isHost) s.text('WAITING FOR HOST TO START', VIEW_W / 2, 204, '#9a9aa8', { align: 'center' });
       const link = net.inviteLink().replace(/^https?:\/\//, '');
       s.text(copied > 0 ? 'LINK COPIED' : link, VIEW_W / 2, 246, copied > 0 ? '#58e070' : '#58c8ff', { align: 'center' });
     },

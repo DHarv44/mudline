@@ -88,8 +88,9 @@ async function boot(): Promise<void> {
   const loop = (now: number) => {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
-    frame(dt, true);
+    // Queued first, so one bad frame cannot stop the game for good.
     requestAnimationFrame(loop);
+    frame(dt, true);
   };
   requestAnimationFrame(loop);
 
