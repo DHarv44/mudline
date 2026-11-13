@@ -61,6 +61,7 @@ export function netLobbyScene(g: Game): Scene {
       const room = net.room;
       if (!room) return;
       const host = net.isHost;
+      g.screen.look = modeById(seriesById(room.series).mode).style;
       const hasClasses = classesOf(seriesById(room.series)).length > 0;
       rows = [
         ...(host ? (['series'] as Row[]) : []),

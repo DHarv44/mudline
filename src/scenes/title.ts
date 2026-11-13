@@ -12,7 +12,8 @@ const EXTRA = ['PLAY ONLINE', 'OPTIONS'];
 /** Title screen: pick a mode from picture cards, over a computer-driven race. */
 export function titleScene(g: Game): Scene {
   let race: Race;
-  let view: RaceView;
+  // Unset only until the first demo() call just below.
+  let view = undefined as unknown as RaceView;
   let acc = 0;
   let n = 0;
   let sel = 0;
@@ -32,6 +33,7 @@ export function titleScene(g: Game): Scene {
     const built = g.tracks.get(ses.trackId, ses.style, ses.klass);
     race = new Race(built.track, ses.entries(), 2, Date.now() & 0xffff);
     race.count = 0.5;
+    view?.dispose(g.screen);
     view = new RaceView(race, built, ses.style);
   };
   demo();
@@ -49,6 +51,9 @@ export function titleScene(g: Game): Scene {
   };
 
   return {
+    leave() {
+      view.dispose(g.screen);
+    },
     update(dt) {
       acc = Math.min(acc + dt, 0.1);
       while (acc >= SIM_DT) {

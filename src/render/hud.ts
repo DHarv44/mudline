@@ -1,11 +1,16 @@
 import { VIEW_H, VIEW_W } from '../core/config';
 import { PAINTS } from '../content/drivers';
 import type { Race } from '../sim/race';
+import { drawHudModern } from './hudModern';
 import type { Screen } from './screen';
 
 export const PLACE = ['1ST', '2ND', '3RD', '4TH'];
 
 export function drawHud(s: Screen, race: Race): void {
+  if (s.modern) {
+    drawHudModern(s, race);
+    return;
+  }
   const trucks = [...race.trucks].sort((a, b) => a.slot - b.slot);
   const w = 116;
   trucks.forEach((t, i) => {

@@ -9,7 +9,8 @@ import { Game, Scene, SceneName, TrackCache } from './game/game';
 import { Session } from './game/session';
 import { loadSettings } from './game/settings';
 import { InputHub } from './input/devices';
-import { FONT, Screen } from './render/screen';
+import '@fontsource/rajdhani/700.css';
+import { FONT, FONT_MODERN, Look, Screen } from './render/screen';
 import { championScene } from './scenes/champion';
 import { controlsScene } from './scenes/controls';
 import { lobbyScene } from './scenes/lobby';
@@ -47,8 +48,16 @@ const SCENES: Record<SceneName, (g: Game, arg: unknown) => Scene> = {
   netRace: (g, arg) => netRaceScene(g, arg as RaceMsg),
 };
 
+const LOOKS: Partial<Record<SceneName, Look>> = {
+  title: 'retro', events: 'retro', lobby: 'retro', options: 'retro', controls: 'retro', online: 'retro',
+  season: 'modern', garage: 'modern',
+};
+
 async function boot(): Promise<void> {
-  await Promise.race([document.fonts.load(`8px ${FONT}`), new Promise((r) => setTimeout(r, 1500))]);
+  await Promise.race([
+    Promise.all([document.fonts.load(`8px ${FONT}`), document.fonts.load(`700 12px ${FONT_MODERN}`)]),
+    new Promise((r) => setTimeout(r, 1500)),
+  ]);
 
   const settings = loadSettings();
   const screen = new Screen();
@@ -70,6 +79,8 @@ async function boot(): Promise<void> {
     go(name, arg) {
       scene?.leave?.();
       sceneName = name;
+      // Front-end and Classic screens keep the arcade look; everything in a modern series is drawn modern.
+      screen.look = LOOKS[name] ?? game.session.style;
       scene = SCENES[name](game, arg);
     },
   };

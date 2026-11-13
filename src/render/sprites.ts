@@ -2,6 +2,7 @@ import { PAINTS } from '../content/drivers';
 import { vehicleById } from '../content/registry';
 import type { RGB } from '../content/themes';
 import type { LayerRect, Token } from '../content/types';
+import { drawLive } from './vehicleLive';
 
 export type Style = 'retro' | 'modern';
 
@@ -115,6 +116,10 @@ export function drawVehicle(
   ctx: CanvasRenderingContext2D, vehicleId: string, color: number, style: Style,
   x: number, y: number, heading: number, lift = 0, size = 1,
 ): void {
+  if (style === 'modern') {
+    drawLive(ctx, vehicleById(vehicleId), PAINTS[color % PAINTS.length].rgb, x, y, heading, { steer: 0, lift, nitro: false, lights: false }, size);
+    return;
+  }
   const s = sheetFor(vehicleId, color, style);
   let f = Math.round((heading / (Math.PI * 2)) * s.angles) % s.angles;
   if (f < 0) f += s.angles;

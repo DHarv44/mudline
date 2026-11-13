@@ -6,6 +6,8 @@ import { paintModern } from '../render/painterModern';
 import { paintRetro } from '../render/painterRetro';
 import type { Screen } from '../render/screen';
 import type { Style } from '../render/sprites';
+import { TrackGL } from '../render/trackGL';
+import type { Race } from '../sim/race';
 import { buildTrack, Track } from '../track/build';
 import type { Session } from './session';
 import type { Settings } from './settings';
@@ -28,6 +30,8 @@ export interface Game {
   settings: Settings;
   tracks: TrackCache;
   net: NetClient;
+  /** The race on screen, for development hooks. */
+  race?: Race;
   go(name: SceneName, arg?: unknown): void;
 }
 
@@ -56,8 +60,13 @@ export class TrackCache {
     let b = this.art.get(key);
     if (!b) {
       const track = this.track(id, klass);
-      const k = style === 'modern' ? Math.min(2, 2160 / track.w) : 1;
-      b = { track, art: style === 'modern' ? paintModern(track, k) : paintRetro(track), k };
+      if (style === 'modern' && TrackGL.get()) {
+        // The graphics card draws modern tracks directly, so there is nothing to paint ahead of time.
+        b = { track, art: document.createElement('canvas'), k: 1 };
+      } else {
+        const k = style === 'modern' ? Math.min(2, 2160 / track.w) : 1;
+        b = { track, art: style === 'modern' ? paintModern(track, k) : paintRetro(track), k };
+      }
       this.art.set(key, b);
     }
     return b;

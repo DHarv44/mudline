@@ -111,6 +111,7 @@ export function netRaceScene(g: Game, msg: RaceMsg): Scene {
       }
     },
     leave() {
+      view.dispose(g.screen);
       net.onSnap = null;
       g.sfx.stopEngines();
     },

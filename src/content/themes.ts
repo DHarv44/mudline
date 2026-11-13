@@ -8,6 +8,8 @@ export interface Theme {
   barrierB: RGB;
   mud: [RGB, RGB];
   water: [RGB, RGB, RGB];
+  /** Raced under lights: the modern renderer dims the ground and switches headlights on. */
+  night?: boolean;
 }
 
 export const THEMES: Record<string, Theme> = {
@@ -44,6 +46,7 @@ export const THEMES: Record<string, Theme> = {
     water: [[70, 170, 200], [40, 130, 170], [170, 230, 240]],
   },
   dusk: {
+    night: true,
     dirt: [[188, 150, 150], [164, 124, 128], [136, 98, 108]],
     ground: [[52, 62, 92], [42, 50, 78], [32, 38, 62]],
     barrierA: [250, 180, 60],
