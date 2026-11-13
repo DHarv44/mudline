@@ -266,7 +266,7 @@ export class Room {
     for (const i of this.inputs) Object.assign(i, { steer: 0, gas: 0, brake: 0, nitro: false });
     const seed = (Math.random() * 0xffff) | 0;
     const entries = this.session.entries();
-    this.race = new Race(trackFor(def.id, this.session.klass), entries, def.laps, seed);
+    this.race = this.session.tune(new Race(trackFor(def.id, this.session.klass), entries, def.laps, seed));
     this.raceMsg = { t: 'race', mode: this.session.mode, round: this.session.round, trackId: def.id, laps: def.laps, seed, entries };
     this.acc = 0;
     this.state = 'race';

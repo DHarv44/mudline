@@ -12,7 +12,7 @@ export function raceScene(g: Game): Scene {
   const ses = g.session;
   const def = trackById(ses.trackId);
   const built = g.tracks.get(def.id, ses.style, ses.klass);
-  const race = new Race(built.track, ses.entries(), def.laps, (Date.now() & 0xffff) + ses.round);
+  const race = ses.tune(new Race(built.track, ses.entries(), def.laps, (Date.now() & 0xffff) + ses.round));
   const view = new RaceView(race, built, ses.style);
   g.race = race;
   const pause = new ListMenu(['RESUME', 'RESTART', 'QUIT']);

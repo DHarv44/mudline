@@ -134,15 +134,16 @@ async function boot(): Promise<void> {
       return { id, klass, bridges: t.spans.length, jumps, whoops };
     },
     /** Runs one round of a series with computer drivers only and reports the finishing times. */
-    sim(seriesId: string, round = 0, klass = '', maxSec = 500) {
+    /** `player` seats a stand-in for a human in slot 0: a computer driver with none of the rivals' advantages. */
+    sim(seriesId: string, round = 0, klass = '', player = false, seed = 7, maxSec = 500) {
       const ses = new Session();
-      ses.setup([null, null, null, null], 'champ', seriesId, { klass });
+      ses.setup([player ? 0 : null, null, null, null], 'champ', seriesId, { klass });
       ses.round = round;
       const track = game.tracks.track(ses.trackId, ses.klass);
-      const race = new Race(track, ses.entries(), track.def.laps, 7);
+      const race = ses.tune(new Race(track, ses.entries(), track.def.laps, seed));
       while (race.phase !== 'done' && race.time < maxSec) race.step(SIM_DT, (t) => aiControls(t, race, SIM_DT, t.finished ? 0.5 : 1));
       return {
-        track: track.def.id, done: race.phase === 'done',
+        track: track.def.id, done: race.phase === 'done', place: race.trucks.find((t) => t.slot === 0)?.place,
         times: race.trucks.map((t) => `${t.vehicle}:${t.finished ? t.finishTime.toFixed(0) : `lap${t.lap}`}`),
         // Where anyone who failed to finish ended up, to find spots that trap the computer drivers.
         lost: race.trucks.filter((t) => !t.finished).map((t) => [Math.round(t.x), Math.round(t.y), t.idx, track.n, t.cp, Math.round(Math.hypot(t.vx, t.vy))]),

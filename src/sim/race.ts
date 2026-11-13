@@ -23,6 +23,10 @@ export class Race {
   rand: Rand;
   /** True on an online client: laps, pickups, ranking and the finish come from the server instead. */
   mirror = false;
+  /** Pace a computer driver gains per checkpoint behind the leading player; 0 for none. */
+  catchUp = 0;
+  /** How readily computer drivers use nitro. */
+  aiNitro = 0.35;
   private finishedCount = 0;
   private endT = 0;
   private spawnT = 4;
@@ -46,7 +50,7 @@ export class Race {
         idx: i, lap: 0, cp: 0, passed: 0, score: 0, pos: g,
         finished: false, finishTime: 0, place: -1,
         nitro: e.nitro, nitroT: 0, nitroHeld: false, cash: 0,
-        lastSurf: 0, lastPow: 1, level: 0, steer: 0, whoop: 0, bigAir: false, slip: 0,
+        lastSurf: 0, lastPow: 1, level: 0, steer: 0, pace: 1, whoop: 0, bigAir: false, slip: 0,
         ai: { lane: lat, laneT: 1 + this.rand() * 2, stuck: 0, rev: 0 },
       });
     });
@@ -151,6 +155,16 @@ export class Race {
       return b.score - a.score;
     });
     order.forEach((t, i) => (t.pos = i));
+    if (this.catchUp <= 0) return;
+    // Rivals behind the leading player find a little more speed, and ease off a touch when well clear.
+    let lead = -Infinity;
+    for (const t of this.trucks) if (t.human) lead = Math.max(lead, t.score);
+    if (lead === -Infinity) return;
+    for (const t of this.trucks) {
+      if (t.human) continue;
+      const want = Math.max(0.97, Math.min(1.06, 1 + (lead - t.score) * this.catchUp));
+      t.pace += (want - t.pace) * 0.02;
+    }
   }
 
   private collide(): void {

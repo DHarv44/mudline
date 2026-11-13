@@ -1,6 +1,6 @@
 import { CPU_NAMES, MAX_NITRO, PAINTS, POINTS } from '../content/drivers';
 import { calendar, catalogById, classesOf, freshUpgrades, hasSeries, modeById, seriesById, statsFor, vehicleById, vehiclesIn } from '../content/registry';
-import type { Catalog, SeriesDef, Upgrades } from '../content/types';
+import type { Catalog, Rivals, SeriesDef, Upgrades } from '../content/types';
 import type { Entry, Race } from '../sim/race';
 
 /** Device value for a human who is playing from another machine. */
@@ -51,6 +51,17 @@ export class Session {
 
   get shopScene(): 'shop' | 'garage' {
     return modeById(this.series.mode).shop;
+  }
+
+  get rivals(): Rivals {
+    return this.series.rivals ?? { skill: 0.9, perRound: 0.008, max: 1, catchUp: 0, nitro: 0.35 };
+  }
+
+  /** Sets a race up with this series' rival behaviour. */
+  tune(race: Race): Race {
+    race.catchUp = this.rivals.catchUp;
+    race.aiNitro = this.rivals.nitro;
+    return race;
   }
 
   /** Seats ask for a vehicle and paint; anything missing, not allowed or already taken is replaced. */
@@ -115,8 +126,9 @@ export class Session {
   entries(): Entry[] {
     return this.drivers.map((d) => {
       const v = vehicleById(d.vehicle);
-      // Computer drivers hold a little back early in a championship.
-      const skill = d.device !== null ? 1 : Math.min(1, 0.9 + d.slot * 0.015 + this.round * 0.008);
+      // Computer drivers get quicker as a championship goes on; how quick is set by the series.
+      const r = this.rivals;
+      const skill = d.device !== null ? 1 : Math.min(r.max, r.skill + d.slot * 0.015 + this.round * r.perRound);
       return {
         slot: d.slot, human: d.device !== null, name: d.name, vehicle: v.id, color: d.color, radius: v.radius,
         stats: statsFor(v, this.catalog, d.up, skill), nitro: d.nitro,

@@ -1,7 +1,9 @@
 import type { Pack } from '../../content/types';
 
 const ALL = ['bike', 'quad', 'truck', 'buggy'];
-const MONEY = { catalog: 'workshop', startMoney: 6000, startNitro: 3, classes: ALL };
+// Rivals here start level with the player, sharpen each round, chase when behind and use their nitro.
+const RIVALS = { skill: 0.96, perRound: 0.006, max: 1.05, catchUp: 0.02, nitro: 1 };
+const MONEY = { catalog: 'workshop', startMoney: 6000, startNitro: 3, classes: ALL, rivals: RIVALS };
 
 /**
  * The Unlimited championships. Each is a calendar drawn from every pack's tracks and can be entered in any

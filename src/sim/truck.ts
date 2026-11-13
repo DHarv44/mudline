@@ -43,6 +43,8 @@ export interface Truck {
   slip: number;
   /** 1 while up on a bridge deck. */
   level: number;
+  /** Top-speed factor the race applies to keep computer drivers in touch; 1 for players. */
+  pace: number;
   /** Smoothed steering input, for drawing turned wheels and leaning riders. */
   steer: number;
   ai: { lane: number; laneT: number; stuck: number; rev: number };
@@ -69,7 +71,7 @@ export function stepTruck(t: Truck, c: Controls, race: Race, dt: number): void {
     surf = surfAt(tr, t.x, t.y);
   }
   t.steer += (c.steer - t.steer) * Math.min(1, dt * 10);
-  let maxV = st.top;
+  let maxV = st.top * t.pace;
   let acc = st.accel;
   let grip = st.grip;
   if (surf === MUD) {

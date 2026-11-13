@@ -143,6 +143,18 @@ export interface ModeDef {
   shop: 'shop' | 'garage';
 }
 
+/** How hard the computer drivers race in a series. */
+export interface Rivals {
+  /** Top-speed factor in round one, how much it grows each round, and its ceiling. */
+  skill: number;
+  perRound: number;
+  max: number;
+  /** Extra pace per checkpoint a rival is behind the leading player (and less when ahead). 0 turns it off. */
+  catchUp: number;
+  /** How readily they fire nitro on a straight, in uses per second of opportunity. */
+  nitro: number;
+}
+
 export interface SeriesDef {
   id: string;
   name: string;
@@ -157,6 +169,8 @@ export interface SeriesDef {
   startMoney: number;
   startNitro: number;
   prizes: number[];
+  /** Left out, rivals start a little slow, improve each round and never chase. */
+  rivals?: Rivals;
 }
 
 export interface Pack {

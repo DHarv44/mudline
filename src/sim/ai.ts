@@ -47,7 +47,7 @@ export function aiControls(t: Truck, race: Race, dt: number, throttle = 1): Cont
   if (t.nitro > 0 && throttle >= 1 && off < 0.12 && sp > 50 && t.z <= 0) {
     const j = (base + 45) % n;
     const straight = tr.tx[base % n] * tr.tx[j] + tr.ty[base % n] * tr.ty[j];
-    if (straight > 0.92 && race.rand() < dt * 0.35) nitro = true;
+    if (straight > 0.92 && race.rand() < dt * race.aiNitro) nitro = true;
   }
   return { steer: clamp(diff * 2.6, -1, 1), gas, brake, nitro };
 }
